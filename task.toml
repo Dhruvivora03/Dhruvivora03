@@ -1,30 +1,30 @@
 author_name = "Dhruvkumar Patel"
 author_email = "dhruvpatel2284@gmail.com"
-category = "spatial_indexing"
+category = "event_sourcing"
 difficulty = "hard"
-tags = ["spatial-indexing", "rtree", "query-engine", "geospatial", "data-structures"]
+tags = ["event-sourcing", "cqrs", "ledger", "replay-engine", "projections"]
 
-difficulty_explanation = "Requires identifying four interacting bugs across three source files: a whitespace parsing issue in feed configuration, a wrong config section reference for tree parameters, an accumulation logic error in batch statistics, and a missing sort key component for deterministic KNN ordering. The bugs are subtle and their effects compound."
-solution_explanation = "Fix feed_loader.py to strip whitespace from comma-split active feeds list, fix rtree_index.py to read max_leaf_capacity from [indexing.rtree] instead of [indexing], fix query_engine.py to use assignment instead of accumulation for per-window batch statistics, and fix rtree_index.py KNN sort key to include feed_id between distance and insert_order."
-verification_explanation = "Tests validate output correctness at multiple levels: basic structure, individual bug effects (zone records present, correct leaf capacity, correct batch stats), and combined correctness (KNN ordering, total record count, full range query accuracy). All 10 tests must pass."
+difficulty_explanation = "Requires identifying four interacting bugs across three source files: a whitespace parsing issue in stream configuration, a wrong config section reference for window sizing, an accumulation logic error in projection computation, and a missing sort key component for deterministic event ordering. The bugs are subtle and their effects compound across the replay process."
+solution_explanation = "Fix event_loader.py to strip whitespace from comma-split active streams list, fix ledger_engine.py to read window_size from [replay.streaming] instead of [replay], fix ledger_engine.py to use assignment instead of accumulation for per-window projections, and fix ledger_engine.py sort key to include stream_id between timestamp and seq for deterministic ordering."
+verification_explanation = "Tests validate output correctness at multiple levels: basic structure checks, individual bug effects (adjustment events present, correct window size, correct projections), and combined correctness (event ordering, total count, full balance accuracy). All 10 tests must pass."
 expert_time_estimate_hours = 3.0
 
 [task]
-name = "spatial-index-repair"
-description = "Debug a spatial indexing engine that builds an R-tree from geospatial feed data and executes range and k-nearest-neighbor queries. The system has four subtle defects causing incorrect feed filtering, degenerate tree structure, inflated statistics, and non-deterministic query ordering."
+name = "event-ledger-repair"
+description = "Debug an event sourcing ledger replay engine that processes transaction events from multiple streams into account balance projections. The system has four subtle defects causing incorrect stream filtering, oversized processing windows, inflated projections, and non-deterministic event ordering."
 
 [task.difficulty]
 level = "hard"
-reasoning = "Four interacting bugs across multiple files require understanding of configuration parsing, tree data structures, batch processing semantics, and sort stability. Bugs are not indicated by comments or obvious code smells."
+reasoning = "Four interacting bugs across multiple files require understanding of event sourcing patterns, configuration parsing, windowed aggregation semantics, and sort stability. Bugs are not indicated by comments or obvious code smells."
 
 [task.runtime]
-entrypoint = "python3 -m runtime.run_spatial"
+entrypoint = "python3 -m runtime.run_ledger"
 language = "python"
 dependencies = "stdlib-only"
 
 [task.validator]
 command = "bash tests/test.sh"
-description = "Runs the spatial indexing engine and validates query results and index statistics against expected correct values using pytest."
+description = "Runs the ledger replay engine and validates event ordering, account balances, and projection statistics against expected correct values using pytest."
 
 [task.repair]
 command = "bash solution/solve.sh"
