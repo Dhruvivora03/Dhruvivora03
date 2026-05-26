@@ -1,0 +1,37 @@
+author_name = "Dhruvkumar Patel"
+author_email = "dhruvpatel2284@gmail.com"
+category = "spatial_indexing"
+difficulty = "hard"
+tags = ["spatial-indexing", "rtree", "query-engine", "geospatial", "data-structures"]
+
+difficulty_explanation = "Requires identifying four interacting bugs across three source files: a whitespace parsing issue in feed configuration, a wrong config section reference for tree parameters, an accumulation logic error in batch statistics, and a missing sort key component for deterministic KNN ordering. The bugs are subtle and their effects compound."
+solution_explanation = "Fix feed_loader.py to strip whitespace from comma-split active feeds list, fix rtree_index.py to read max_leaf_capacity from [indexing.rtree] instead of [indexing], fix query_engine.py to use assignment instead of accumulation for per-window batch statistics, and fix rtree_index.py KNN sort key to include feed_id between distance and insert_order."
+verification_explanation = "Tests validate output correctness at multiple levels: basic structure, individual bug effects (zone records present, correct leaf capacity, correct batch stats), and combined correctness (KNN ordering, total record count, full range query accuracy). All 10 tests must pass."
+expert_time_estimate_hours = 3.0
+
+[task]
+name = "spatial-index-repair"
+description = "Debug a spatial indexing engine that builds an R-tree from geospatial feed data and executes range and k-nearest-neighbor queries. The system has four subtle defects causing incorrect feed filtering, degenerate tree structure, inflated statistics, and non-deterministic query ordering."
+
+[task.difficulty]
+level = "hard"
+reasoning = "Four interacting bugs across multiple files require understanding of configuration parsing, tree data structures, batch processing semantics, and sort stability. Bugs are not indicated by comments or obvious code smells."
+
+[task.runtime]
+entrypoint = "python3 -m runtime.run_spatial"
+language = "python"
+dependencies = "stdlib-only"
+
+[task.validator]
+command = "bash tests/test.sh"
+description = "Runs the spatial indexing engine and validates query results and index statistics against expected correct values using pytest."
+
+[task.repair]
+command = "bash solution/solve.sh"
+description = "Patches four bugs in the runtime source files and re-runs the engine to produce correct output."
+
+[task.resources]
+timeout = 300
+cpu = 2
+memory = "2GB"
+disk = "1GB"
