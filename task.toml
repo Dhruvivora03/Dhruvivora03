@@ -1,30 +1,30 @@
 author_name = "Dhruvkumar Patel"
 author_email = "dhruvpatel2284@gmail.com"
-category = "compiler_internals"
+category = "cryptographic_verification"
 difficulty = "hard"
-tags = ["compiler", "ir-optimization", "dead-code-elimination", "constant-folding", "pass-engine"]
+tags = ["merkle-tree", "cryptography", "proof-verification", "hash-chains", "dead-code"]
 
-difficulty_explanation = "Requires identifying four interacting bugs across multiple source files: a whitespace parsing issue hidden inside a registry helper method, a wrong config section reference for pass parameters affecting dead code elimination thresholds, an accumulation logic error in window metric computation buried in nested loops, and a missing sort key component for deterministic instruction ordering. The bugs compound — incorrect module loading affects use-def analysis, wrong pass parameters prevent elimination, and these interact with metrics aggregation."
-solution_explanation = "Fix module_loader.py ModuleRegistry._resolve_active_modules to strip whitespace from comma-split module names, fix pass_engine.py to read pass_depth and inline_threshold from [optimizer.passes] instead of [optimizer], fix pass_engine.py to use assignment instead of accumulation for per-window metrics, and fix pass_engine.py sort key to include module_id between timestamp and seq."
-verification_explanation = "Tests validate output correctness at multiple levels: basic structure, individual bug effects (memory module present, correct pass depth, correct window metrics), and combined correctness (instruction ordering, total count, dead code elimination requiring all bugs fixed simultaneously). All 10 tests must pass."
-expert_time_estimate_hours = 3.5
+difficulty_explanation = "Requires identifying four interacting bugs: whitespace parsing in chain registry affecting which hash chains are loaded, an off-by-one error in verification round loop (range(n-1) vs range(n)), a wrong comparison operator (> vs >=) combined with accumulation logic in window metrics, and a wrong sort field (leaf_hash vs position) for proof ordering. The bugs compound — missing chains affect verification scores, fewer rounds change coverage ratios, and wrong ordering affects window boundary composition."
+solution_explanation = "Fix chain_registry.py to strip whitespace from comma-split chain names, fix verifier_engine.py to use range(self._rounds) instead of range(self._rounds - 1), fix verifier_engine.py depth comparison from > to >= AND change window accumulation from += to = (assignment), and fix sort key from leaf_hash to position for deterministic merkle tree node ordering."
+verification_explanation = "Tests validate at multiple levels: basic structure, individual bugs (keccak chain present, correct coverage, correct depth transitions), and combined correctness (proof ordering, total count, full verification scores requiring all bugs fixed). The verification_scores test computes actual SHA-256 hashes making it impossible to guess correct values."
+expert_time_estimate_hours = 4.0
 
 [task]
-name = "ir-optimizer-repair"
-description = "Debug a compiler IR optimization engine that applies dead code elimination and constant folding passes to instruction streams from multiple modules. The system has four subtle defects in module registry filtering, pass configuration loading, metrics aggregation, and instruction ordering that compound to produce incorrect optimization results."
+name = "merkle-verifier-repair"
+description = "Debug a merkle proof verification engine that validates cryptographic proofs across multiple hash chains. The system has four subtle defects in chain registry filtering, verification round iteration, depth transition tracking with window metrics, and proof ordering that compound to produce incorrect verification results."
 
 [task.difficulty]
 level = "hard"
-reasoning = "Four interacting bugs across multiple files require understanding of compiler IR concepts, use-def analysis, configuration parsing with registry indirection, windowed metric computation, and sort stability. The module filtering bug is hidden inside a registry helper class, and dead code elimination results depend on all three other bugs being fixed (correct modules loaded, correct threshold, correct ordering affects use counts)."
+reasoning = "Four interacting bugs require understanding of cryptographic hash verification, merkle tree node positioning, off-by-one iteration errors, comparison operator semantics in depth tracking, and sort field selection. The chain loading bug affects verification scores through use-count dependencies, and the off-by-one is disguised as intentional zero-indexing."
 
 [task.runtime]
-entrypoint = "python3 -m runtime.run_optimizer"
+entrypoint = "python3 -m runtime.run_verifier"
 language = "python"
 dependencies = "stdlib-only"
 
 [task.validator]
 command = "bash tests/test.sh"
-description = "Runs the IR optimizer engine and validates optimization reports and analysis metrics against expected correct values using pytest."
+description = "Runs the merkle verification engine and validates proof ordering, verification scores, and metrics against expected correct values using pytest."
 
 [task.repair]
 command = "bash solution/solve.sh"
