@@ -1,30 +1,30 @@
 author_name = "Dhruvkumar Patel"
 author_email = "dhruvpatel2284@gmail.com"
-category = "event_sourcing"
+category = "task_scheduling"
 difficulty = "hard"
-tags = ["event-sourcing", "cqrs", "ledger", "replay-engine", "projections"]
+tags = ["task-scheduler", "dependency-resolution", "topological-sort", "priority-queue", "resource-management"]
 
-difficulty_explanation = "Requires identifying four interacting bugs across three source files: a whitespace parsing issue in stream configuration, a wrong config section reference for window sizing, an accumulation logic error in projection computation, and a missing sort key component for deterministic event ordering. The bugs are subtle and their effects compound across the replay process."
-solution_explanation = "Fix event_loader.py to strip whitespace from comma-split active streams list, fix ledger_engine.py to read window_size from [replay.streaming] instead of [replay], fix ledger_engine.py to use assignment instead of accumulation for per-window projections, and fix ledger_engine.py sort key to include stream_id between timestamp and seq for deterministic ordering."
-verification_explanation = "Tests validate output correctness at multiple levels: basic structure checks, individual bug effects (adjustment events present, correct window size, correct projections), and combined correctness (event ordering, total count, full balance accuracy). All 10 tests must pass."
+difficulty_explanation = "Requires identifying four interacting bugs across three source files: a whitespace parsing issue in category configuration, a wrong config section reference for epoch sizing, an accumulation logic error in resource computation, and a missing sort key component for deterministic priority tiebreaking. The bugs are subtle and their effects compound across the scheduling process."
+solution_explanation = "Fix job_loader.py to strip whitespace from comma-split active categories list, fix scheduler_engine.py to read epoch_size from [scheduling.parallel] instead of [scheduling], fix scheduler_engine.py to use assignment instead of accumulation for per-epoch resources, and fix scheduler_engine.py sort key to include category_id between priority and seq for deterministic ordering."
+verification_explanation = "Tests validate output correctness at multiple levels: basic structure, individual bug effects (maintenance jobs present, correct epoch size, correct resources), and combined correctness (priority tiebreaking, total count, full duration accuracy). All 10 tests must pass."
 expert_time_estimate_hours = 3.0
 
 [task]
-name = "event-ledger-repair"
-description = "Debug an event sourcing ledger replay engine that processes transaction events from multiple streams into account balance projections. The system has four subtle defects causing incorrect stream filtering, oversized processing windows, inflated projections, and non-deterministic event ordering."
+name = "scheduler-repair"
+description = "Debug a task scheduler engine that resolves job dependencies via topological sort with priority-based tiebreaking and produces execution plans with resource utilization reports. The system has four subtle defects causing incorrect category filtering, oversized processing epochs, inflated resource counts, and non-deterministic job ordering."
 
 [task.difficulty]
 level = "hard"
-reasoning = "Four interacting bugs across multiple files require understanding of event sourcing patterns, configuration parsing, windowed aggregation semantics, and sort stability. Bugs are not indicated by comments or obvious code smells."
+reasoning = "Four interacting bugs across multiple files require understanding of dependency graphs, topological sorting, configuration parsing, epoch-based aggregation, and sort stability. Bugs are not indicated by comments or obvious code smells."
 
 [task.runtime]
-entrypoint = "python3 -m runtime.run_ledger"
+entrypoint = "python3 -m runtime.run_scheduler"
 language = "python"
 dependencies = "stdlib-only"
 
 [task.validator]
 command = "bash tests/test.sh"
-description = "Runs the ledger replay engine and validates event ordering, account balances, and projection statistics against expected correct values using pytest."
+description = "Runs the scheduler engine and validates execution plan and resource reports against expected correct values using pytest."
 
 [task.repair]
 command = "bash solution/solve.sh"
