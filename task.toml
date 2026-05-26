@@ -1,30 +1,30 @@
 author_name = "Dhruvkumar Patel"
 author_email = "dhruvpatel2284@gmail.com"
-category = "task_scheduling"
+category = "compiler_internals"
 difficulty = "hard"
-tags = ["task-scheduler", "dependency-resolution", "topological-sort", "priority-queue", "resource-management"]
+tags = ["compiler", "ir-optimization", "dead-code-elimination", "constant-folding", "pass-engine"]
 
-difficulty_explanation = "Requires identifying four interacting bugs across three source files: a whitespace parsing issue in category configuration, a wrong config section reference for epoch sizing, an accumulation logic error in resource computation, and a missing sort key component for deterministic priority tiebreaking. The bugs are subtle and their effects compound across the scheduling process."
-solution_explanation = "Fix job_loader.py to strip whitespace from comma-split active categories list, fix scheduler_engine.py to read epoch_size from [scheduling.parallel] instead of [scheduling], fix scheduler_engine.py to use assignment instead of accumulation for per-epoch resources, and fix scheduler_engine.py sort key to include category_id between priority and seq for deterministic ordering."
-verification_explanation = "Tests validate output correctness at multiple levels: basic structure, individual bug effects (maintenance jobs present, correct epoch size, correct resources), and combined correctness (priority tiebreaking, total count, full duration accuracy). All 10 tests must pass."
-expert_time_estimate_hours = 3.0
+difficulty_explanation = "Requires identifying four interacting bugs across multiple source files: a whitespace parsing issue hidden inside a registry helper method, a wrong config section reference for pass parameters affecting dead code elimination thresholds, an accumulation logic error in window metric computation buried in nested loops, and a missing sort key component for deterministic instruction ordering. The bugs compound — incorrect module loading affects use-def analysis, wrong pass parameters prevent elimination, and these interact with metrics aggregation."
+solution_explanation = "Fix module_loader.py ModuleRegistry._resolve_active_modules to strip whitespace from comma-split module names, fix pass_engine.py to read pass_depth and inline_threshold from [optimizer.passes] instead of [optimizer], fix pass_engine.py to use assignment instead of accumulation for per-window metrics, and fix pass_engine.py sort key to include module_id between timestamp and seq."
+verification_explanation = "Tests validate output correctness at multiple levels: basic structure, individual bug effects (memory module present, correct pass depth, correct window metrics), and combined correctness (instruction ordering, total count, dead code elimination requiring all bugs fixed simultaneously). All 10 tests must pass."
+expert_time_estimate_hours = 3.5
 
 [task]
-name = "scheduler-repair"
-description = "Debug a task scheduler engine that resolves job dependencies via topological sort with priority-based tiebreaking and produces execution plans with resource utilization reports. The system has four subtle defects causing incorrect category filtering, oversized processing epochs, inflated resource counts, and non-deterministic job ordering."
+name = "ir-optimizer-repair"
+description = "Debug a compiler IR optimization engine that applies dead code elimination and constant folding passes to instruction streams from multiple modules. The system has four subtle defects in module registry filtering, pass configuration loading, metrics aggregation, and instruction ordering that compound to produce incorrect optimization results."
 
 [task.difficulty]
 level = "hard"
-reasoning = "Four interacting bugs across multiple files require understanding of dependency graphs, topological sorting, configuration parsing, epoch-based aggregation, and sort stability. Bugs are not indicated by comments or obvious code smells."
+reasoning = "Four interacting bugs across multiple files require understanding of compiler IR concepts, use-def analysis, configuration parsing with registry indirection, windowed metric computation, and sort stability. The module filtering bug is hidden inside a registry helper class, and dead code elimination results depend on all three other bugs being fixed (correct modules loaded, correct threshold, correct ordering affects use counts)."
 
 [task.runtime]
-entrypoint = "python3 -m runtime.run_scheduler"
+entrypoint = "python3 -m runtime.run_optimizer"
 language = "python"
 dependencies = "stdlib-only"
 
 [task.validator]
 command = "bash tests/test.sh"
-description = "Runs the scheduler engine and validates execution plan and resource reports against expected correct values using pytest."
+description = "Runs the IR optimizer engine and validates optimization reports and analysis metrics against expected correct values using pytest."
 
 [task.repair]
 command = "bash solution/solve.sh"

@@ -1,3 +1,3 @@
 #!/bin/bash
 cd /app
-python3 /solution/repair_job_scheduler.py
+python3 /solution/repair_ir_optimizer.py
