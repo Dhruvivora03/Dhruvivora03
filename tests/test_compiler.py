@@ -108,42 +108,35 @@ def test_complex_src_compiled():
 
 
 def test_constant_fold_subtraction():
-    """Verify that constant folding computes subtraction correctly.
-
-    The expression '100 - 37' should fold to PUSH_CONST 63.
-    """
+    """Verify that constant folding computes correct results."""
     data = _load_results()
     unit = _get_unit(data, "arithmetic.src")
     assert unit is not None, "arithmetic.src not found"
 
-    # Find the folded constant for 100-37 (should be 63)
     opt = unit["optimized_instructions"]
     folded_values = [
         i["operand"] for i in opt
         if i["opcode"] == "PUSH_CONST" and isinstance(i.get("operand"), (int, float))
-        and i["operand"] not in (2,)  # exclude the literal 2 in 'a * 2'
+        and i["operand"] not in (2,)
     ]
     assert 63 in folded_values, (
-        f"Expected PUSH_CONST 63 from folding '100 - 37', but found "
-        f"constants: {folded_values}. The constant folding pass produces "
-        f"incorrect results for non-commutative operations."
+        f"Expected PUSH_CONST 63 in optimized output, but found "
+        f"constants: {folded_values}."
     )
 
 
 def test_peephole_pass_active():
     """Verify that the peephole optimization pass is active.
 
-    With optimization level 3, all passes including peephole should run.
-    If peephole is missing, check which configuration section provides
-    the optimization level parameter.
+    The peephole pass should be enabled at the configured optimization level.
     """
     stats = _load_stats()
     assert "peephole" in stats["active_passes"], (
         f"Peephole pass not active. Active passes: {stats['active_passes']}. "
         f"Current optimization_level: {stats['optimization_level']}."
     )
-    assert stats["optimization_level"] == 3, (
-        f"Expected optimization_level=3, got {stats['optimization_level']}."
+    assert stats["optimization_level"] >= 2, (
+        f"Optimization level too low for peephole pass, got {stats['optimization_level']}."
     )
 
 
@@ -205,15 +198,26 @@ def test_per_file_pass_stats_independent():
 def test_total_instructions_eliminated():
     """Verify the correct total number of instructions eliminated.
 
-    With all optimizations working correctly (constant folding with
-    proper operand order, peephole active, all files compiled, correct
-    variable resolution), the total eliminations should be 24.
+    With all optimizations working correctly, the per-file and total
+    elimination counts must match expected values precisely.
     """
     stats = _load_stats()
     assert stats["total_instructions_eliminated"] == 24, (
         f"Expected 24 total instructions eliminated, "
-        f"got {stats['total_instructions_eliminated']}. "
-        f"This requires all source files compiled, correct constant "
-        f"folding, active peephole pass, proper variable resolution, "
-        f"and independent per-file statistics."
+        f"got {stats['total_instructions_eliminated']}."
     )
+
+    # Verify exact per-file optimized instruction counts
+    data = _load_results()
+    expected_counts = {
+        "arithmetic.src": 20,
+        "complex.src": 32,
+        "variables.src": 24,
+    }
+    for filename, expected_opt in expected_counts.items():
+        unit = _get_unit(data, filename)
+        assert unit is not None, f"{filename} missing from results"
+        assert unit["optimized_count"] == expected_opt, (
+            f"{filename} should have {expected_opt} optimized instructions, "
+            f"got {unit['optimized_count']}."
+        )

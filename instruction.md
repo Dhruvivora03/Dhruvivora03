@@ -35,14 +35,13 @@ The compiler runs without errors but produces incorrect output:
 
 ## Expected Correct Output
 
-When all defects are fixed:
+When all defects are fixed, the compiler should:
 
-- All 3 source files (arithmetic.src, complex.src, variables.src) should be compiled
-- Constant folding should produce correct values: `10+5=15`, `100-37=63`, `50-8=42`, `48/6=8.0`
-- The peephole pass should be active (the correct optimization level enables all passes)
-- All variable references should resolve correctly through the symbol table
-- Per-file pass statistics should be independent (not accumulated across files)
-- Total instructions eliminated across all files: 24
+- Compile all configured source files successfully
+- Produce arithmetically correct constant-folded values for all operations
+- Run all optimization passes that the configuration enables
+- Correctly resolve variable references through the symbol table
+- Report accurate per-file optimization statistics
 
 ## Output Schema
 
