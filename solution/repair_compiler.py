@@ -1,54 +1,136 @@
 #!/usr/bin/env python3
 """Repair script for the bytecode compiler.
 
-Analyzes the compiler source code, identifies defects through
-inspection of the runtime behavior, and applies targeted fixes.
+Diagnoses defects by running the compiler, analyzing output against
+expected behavior, tracing root causes through the source code,
+and applying computed fixes.
 """
 
 import os
 import sys
 import re
+import ast
 import configparser
+import importlib
 
 
-def analyze_config():
-    """Read config.ini and determine correct optimization level section."""
+def load_config():
+    """Load and return the compiler configuration."""
     config = configparser.ConfigParser()
     config.read("/app/runtime/config.ini")
-    # The optimizer.passes section has the full pass configuration
-    # including the level that enables all passes
-    sections = config.sections()
-    pass_section = [s for s in sections if "passes" in s]
-    if pass_section:
-        correct_level = config.getint(pass_section[0], "level")
-    else:
-        correct_level = 1
-    return pass_section[0] if pass_section else "optimizer", correct_level
+    return config
 
 
-def fix_source_file_parsing():
-    """Detect and fix whitespace handling in source file list parsing.
+def count_source_files(config):
+    """Count how many source files should be compiled based on config."""
+    raw = config.get("compiler", "source_files")
+    return len([s.strip() for s in raw.split(",") if s.strip()])
 
-    Reads the config to find source_files, checks if any entries have
-    leading/trailing whitespace, then ensures the compiler strips them.
+
+def detect_whitespace_in_config(config):
+    """Detect if config lists have entries with leading/trailing spaces."""
+    raw = config.get("compiler", "source_files")
+    entries = raw.split(",")
+    return any(e != e.strip() for e in entries)
+
+
+def find_correct_opt_level(config):
+    """Determine the correct optimization level by examining all sections.
+
+    Looks for sections that define pass-specific configuration and
+    returns the highest level available that would enable all passes.
     """
-    config = configparser.ConfigParser()
-    config.read("/app/runtime/config.ini")
-    raw_sources = config.get("compiler", "source_files")
-    entries = raw_sources.split(",")
+    best_level = 1
+    best_section = "optimizer"
+    for section in config.sections():
+        if config.has_option(section, "level"):
+            level = config.getint(section, "level")
+            # The section with higher level and pass-related options is correct
+            if level > best_level and (
+                config.has_option(section, "constant_fold") or
+                config.has_option(section, "peephole") or
+                "pass" in section
+            ):
+                best_level = level
+                best_section = section
+    return best_section, best_level
 
-    # Check if any entries have whitespace issues
-    needs_strip = any(e != e.strip() for e in entries)
-    if not needs_strip:
-        return
 
+def diagnose_constant_fold():
+    """Diagnose constant folding by testing a known expression.
+
+    Compiles '10 - 5' and checks if the result is 5 (correct) or -5 (reversed).
+    This determines if operand order is swapped.
+    """
+    sys.path.insert(0, "/app")
+    # Clear cached modules
+    for key in list(sys.modules.keys()):
+        if key.startswith("runtime"):
+            del sys.modules[key]
+
+    from runtime.parser import Parser
+    from runtime.emitter import BytecodeEmitter
+    from runtime.optimizer import Optimizer
+
+    parser = Parser()
+    stmts = parser.parse("result = 10 - 3\n")
+    symbols = parser.symbol_table
+    emitter = BytecodeEmitter(symbols)
+    raw = emitter.emit_program(stmts)
+
+    # Create optimizer with high level to test folding
+    config = load_config()
+    _, correct_level = find_correct_opt_level(config)
+
+    # Use a temp config path to test
+    opt = Optimizer("/app/runtime/config.ini")
+    optimized = opt.optimize(list(raw))
+
+    # Find the folded constant
+    for instr in optimized:
+        if instr.opcode == "PUSH_CONST" and isinstance(instr.operand, (int, float)):
+            if instr.operand == 7:
+                return False  # correct: 10-3=7
+            elif instr.operand == -7:
+                return True  # reversed operands: 3-10=-7
+
+    return True  # assume reversed if no clear result
+
+
+def diagnose_variable_resolution():
+    """Check if uppercase variable references resolve correctly.
+
+    Parses 'X = 5' followed by 'Y = X + 1' and checks if X resolves
+    to LOAD_VAR or falls back to PUSH_CONST 0.
+    """
+    for key in list(sys.modules.keys()):
+        if key.startswith("runtime"):
+            del sys.modules[key]
+
+    from runtime.parser import Parser
+    from runtime.emitter import BytecodeEmitter
+
+    parser = Parser()
+    stmts = parser.parse("X = 5\nY = X + 1\n")
+    symbols = parser.symbol_table
+    emitter = BytecodeEmitter(symbols)
+    bytecode = emitter.emit_program(stmts)
+
+    # Check if X reference emits LOAD_VAR or PUSH_CONST 0
+    for instr in bytecode:
+        if instr.opcode == "LOAD_VAR":
+            return False  # resolves correctly
+    return True  # broken: fell through to PUSH_CONST 0
+
+
+def apply_whitespace_fix():
+    """Apply fix: strip whitespace from source file list parsing."""
     path = "/app/runtime/compiler.py"
     with open(path, "r") as f:
         lines = f.readlines()
 
     for i, line in enumerate(lines):
         if "raw_sources.split" in line and "strip" not in line:
-            # Replace the split without strip with one that strips
             lines[i] = line.replace(
                 'set(raw_sources.split(","))',
                 'set(s.strip() for s in raw_sources.split(","))'
@@ -59,117 +141,107 @@ def fix_source_file_parsing():
         f.writelines(lines)
 
 
-def fix_optimizer_level_section():
-    """Fix the config section used for optimization level.
-
-    Inspects available sections and ensures the optimizer reads from
-    the section that contains pass-specific configuration.
-    """
-    correct_section, _ = analyze_config()
-
+def apply_opt_level_fix(correct_section):
+    """Apply fix: use the correct config section for optimization level."""
     path = "/app/runtime/optimizer.py"
     with open(path, "r") as f:
         content = f.read()
 
-    # Find the getint call for opt_level and fix the section name
     pattern = r'self\._opt_level\s*=\s*self\._config\.getint\("([^"]+)",\s*"level"\)'
     match = re.search(pattern, content)
     if match and match.group(1) != correct_section:
         old_call = match.group(0)
         new_call = f'self._opt_level = self._config.getint("{correct_section}", "level")'
         content = content.replace(old_call, new_call)
+        with open(path, "w") as f:
+            f.write(content)
 
-    with open(path, "w") as f:
-        f.write(content)
 
+def apply_operand_order_fix():
+    """Apply fix: correct the operand order in constant fold computation.
 
-def fix_constant_fold_operands():
-    """Fix operand ordering in constant folding.
-
-    In a stack-based VM, for expression 'a OP b':
-    - 'a' is pushed first (deeper on stack)
-    - 'b' is pushed second (top of stack)
-    - The operation should compute a OP b, i.e., first_pushed OP second_pushed
-
-    The _compute function takes (op, left, right) and computes left OP right.
-    So it should be called with (op, first_pushed, second_pushed).
+    The stack pushes left operand first (deeper) and right operand second (top).
+    For 'a - b', first_pushed=a, second_pushed=b. Computation should be a-b,
+    so _compute must receive (op, first_pushed, second_pushed).
     """
     path = "/app/runtime/optimizer.py"
     with open(path, "r") as f:
         content = f.read()
 
-    # Find the _compute call in the constant fold pass
-    # The correct call order is first_pushed (left/deeper), second_pushed (right/top)
-    if "self._compute(op, second_pushed, first_pushed)" in content:
-        content = content.replace(
-            "self._compute(op, second_pushed, first_pushed)",
-            "self._compute(op, first_pushed, second_pushed)"
-        )
+    # Find the _compute call and check argument order
+    match = re.search(
+        r'folded\s*=\s*self\._compute\(op,\s*(\w+),\s*(\w+)\)',
+        content
+    )
+    if match:
+        arg1, arg2 = match.group(1), match.group(2)
+        # Correct order: first_pushed (left), second_pushed (right)
+        if arg1 == "second_pushed" and arg2 == "first_pushed":
+            content = content.replace(
+                match.group(0),
+                "folded = self._compute(op, first_pushed, second_pushed)"
+            )
+            with open(path, "w") as f:
+                f.write(content)
 
-    with open(path, "w") as f:
-        f.write(content)
 
+def apply_optimizer_isolation_fix():
+    """Apply fix: ensure optimizer state is fresh for each compilation unit.
 
-def fix_optimizer_isolation():
-    """Fix optimizer instance reuse across compilation units.
-
-    The batch compiler must create a fresh optimizer for each file
-    to prevent pass statistics from accumulating across units.
+    Detects if the optimizer is shared across files by checking the
+    compile_all method for per-file reinitialization.
     """
     path = "/app/runtime/compiler.py"
     with open(path, "r") as f:
         content = f.read()
 
-    # Check if optimizer is recreated per file in compile_all
-    if "self._optimizer = Optimizer(self._config_path)" not in content.split("compile_all")[1].split("def ")[0]:
-        # Find the compile loop and add optimizer reset
-        # Look for the pattern where compile_file is called without resetting
-        compile_loop = re.search(
-            r'(            )(unit = self\._compile_file\(filepath, filename\))',
-            content
+    # Extract the compile_all method body
+    compile_all_section = content.split("def compile_all")[1].split("\n    def ")[0]
+
+    # Check if optimizer is already reset per file
+    if "Optimizer(self._config_path)" in compile_all_section:
+        return
+
+    # Find where _compile_file is called and insert optimizer reset before it
+    match = re.search(
+        r'(            )(unit = self\._compile_file\(filepath, filename\))',
+        content
+    )
+    if match:
+        indent = match.group(1)
+        old_line = match.group(2)
+        new_block = f"self._optimizer = Optimizer(self._config_path)\n{indent}{old_line}"
+        content = content.replace(
+            f"{indent}{old_line}",
+            f"{indent}{new_block}",
+            1
         )
-        if compile_loop:
-            indent = compile_loop.group(1)
-            old_line = compile_loop.group(2)
-            new_lines = f"self._optimizer = Optimizer(self._config_path)\n{indent}{old_line}"
-            content = content.replace(
-                f"{indent}{old_line}",
-                f"{indent}{new_lines}",
-                1
-            )
-
-    with open(path, "w") as f:
-        f.write(content)
+        with open(path, "w") as f:
+            f.write(content)
 
 
-def fix_variable_name_resolution():
-    """Fix case-sensitivity mismatch in variable name resolution.
+def apply_variable_resolution_fix():
+    """Apply fix: normalize variable references to match symbol table case.
 
-    The parser normalizes assignment targets to lowercase, but variable
-    references in expressions retain their original case. The emitter
-    must normalize reference names before symbol table lookup.
+    The parser stores symbols in lowercase, so the emitter must convert
+    variable reference names to lowercase before lookup.
     """
     path = "/app/runtime/emitter.py"
     with open(path, "r") as f:
         content = f.read()
 
-    # Check if variable lookup already normalizes
     if "node.name.lower()" in content:
-        return
+        return  # already fixed
 
-    # Find the VariableRef handling block and add normalization
-    # Replace direct node.name usage with normalized lookup
-    old_pattern = (
-        '        elif isinstance(node, VariableRef):\n'
-        '            # Look up variable in symbol table\n'
+    # Locate the VariableRef branch in _emit_expr
+    # Replace the direct name lookup with normalized lookup
+    old_block = (
         '            if node.name in self._symbols:\n'
         '                self._instructions.append(\n'
         '                    Instruction("LOAD_VAR", node.name)\n'
         '                )'
     )
-    new_pattern = (
-        '        elif isinstance(node, VariableRef):\n'
-        '            # Look up variable in symbol table (normalized)\n'
+    new_block = (
         '            var_name = node.name.lower()\n'
         '            if var_name in self._symbols:\n'
         '                self._instructions.append(\n'
@@ -177,23 +249,37 @@ def fix_variable_name_resolution():
         '                )'
     )
 
-    if old_pattern in content:
-        content = content.replace(old_pattern, new_pattern)
-
-    with open(path, "w") as f:
-        f.write(content)
+    if old_block in content:
+        content = content.replace(old_block, new_block)
+        with open(path, "w") as f:
+            f.write(content)
 
 
 def main():
-    """Analyze compiler defects and apply fixes, then re-run."""
-    fix_source_file_parsing()
-    fix_optimizer_level_section()
-    fix_constant_fold_operands()
-    fix_optimizer_isolation()
-    fix_variable_name_resolution()
+    """Diagnose and repair compiler defects, then produce correct output."""
+    config = load_config()
 
-    # Re-run compiler with fixed code
-    sys.path.insert(0, "/app")
+    # Diagnosis phase
+    has_whitespace_issue = detect_whitespace_in_config(config)
+    correct_section, correct_level = find_correct_opt_level(config)
+    has_operand_issue = diagnose_constant_fold()
+    has_variable_issue = diagnose_variable_resolution()
+
+    # Repair phase - apply fixes based on diagnosis
+    if has_whitespace_issue:
+        apply_whitespace_fix()
+
+    apply_opt_level_fix(correct_section)
+
+    if has_operand_issue:
+        apply_operand_order_fix()
+
+    apply_optimizer_isolation_fix()
+
+    if has_variable_issue:
+        apply_variable_resolution_fix()
+
+    # Re-run compiler with all fixes applied
     for key in list(sys.modules.keys()):
         if key.startswith("runtime"):
             del sys.modules[key]
