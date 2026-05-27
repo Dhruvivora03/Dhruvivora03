@@ -51,11 +51,11 @@ class ConstantFoldPass(OptimizationPass):
                     instructions[i + 2].opcode in self._foldable_ops):
 
                 # Fold: compute the result at compile time
-                first_pushed = instructions[i].operand
-                second_pushed = instructions[i + 1].operand
+                left = instructions[i].operand
+                right = instructions[i + 1].operand
                 op = instructions[i + 2].opcode
 
-                folded = self._compute(op, second_pushed, first_pushed)
+                folded = self._compute(op, right, left)
                 result.append(Instruction("PUSH_CONST", folded))
                 self.eliminations += 2
                 i += 3
@@ -104,10 +104,20 @@ class DeadStorePass(OptimizationPass):
             if (instr.opcode == "STORE_VAR" and
                     instr.operand not in loaded_vars):
                 self.eliminations += 1
-                # Also need to remove the preceding value push
+                # Also need to remove the preceding value computation
                 if result and result[-1].opcode in ("PUSH_CONST", "LOAD_VAR"):
                     result.pop()
                     self.eliminations += 1
+                elif result and result[-1].opcode in ("ADD", "SUB", "MUL", "DIV"):
+                    # Remove the operation and its two operands
+                    result.pop()  # remove op
+                    self.eliminations += 1
+                    if result and result[-1].opcode == "PUSH_CONST":
+                        result.pop()
+                        self.eliminations += 1
+                    if result and result[-1].opcode == "PUSH_CONST":
+                        result.pop()
+                        self.eliminations += 1
             else:
                 result.append(instr)
 

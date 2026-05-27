@@ -161,8 +161,8 @@ def apply_operand_order_fix():
     """Apply fix: correct the operand order in constant fold computation.
 
     The stack pushes left operand first (deeper) and right operand second (top).
-    For 'a - b', first_pushed=a, second_pushed=b. Computation should be a-b,
-    so _compute must receive (op, first_pushed, second_pushed).
+    For 'a - b', left=a, right=b. Computation should be a-b,
+    so _compute must receive (op, left, right).
     """
     path = "/app/runtime/optimizer.py"
     with open(path, "r") as f:
@@ -175,11 +175,11 @@ def apply_operand_order_fix():
     )
     if match:
         arg1, arg2 = match.group(1), match.group(2)
-        # Correct order: first_pushed (left), second_pushed (right)
-        if arg1 == "second_pushed" and arg2 == "first_pushed":
+        # Correct order: left (first pushed), right (second pushed)
+        if arg1 == "right" and arg2 == "left":
             content = content.replace(
                 match.group(0),
-                "folded = self._compute(op, first_pushed, second_pushed)"
+                "folded = self._compute(op, left, right)"
             )
             with open(path, "w") as f:
                 f.write(content)
