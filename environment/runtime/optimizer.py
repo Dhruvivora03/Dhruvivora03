@@ -178,6 +178,42 @@ class PeepholePass(OptimizationPass):
         return result
 
 
+class AggressiveFoldPass(OptimizationPass):
+    """Aggressive constant propagation pass.
+
+    Replaces LOAD_VAR followed by arithmetic with pre-computed constants
+    when possible. Only runs at optimization level 4+.
+    Warning: This pass assumes single-assignment form which may not hold.
+    """
+
+    min_level = 4
+
+    def __init__(self):
+        super().__init__("aggressive_fold")
+
+    def apply(self, instructions):
+        """Aggressively propagate constants through variable loads."""
+        from runtime.emitter import Instruction
+
+        # Track constant values for variables
+        var_values = {}
+        result = []
+
+        for instr in instructions:
+            if instr.opcode == "STORE_VAR" and result:
+                prev = result[-1]
+                if prev.opcode == "PUSH_CONST":
+                    var_values[instr.operand] = prev.operand
+            elif instr.opcode == "LOAD_VAR" and instr.operand in var_values:
+                result.append(Instruction("PUSH_CONST", var_values[instr.operand]))
+                self.eliminations += 1
+                continue
+
+            result.append(instr)
+
+        return result
+
+
 class Optimizer:
     """Orchestrates optimization passes on bytecode."""
 
@@ -193,6 +229,7 @@ class Optimizer:
             ConstantFoldPass(),
             DeadStorePass(),
             PeepholePass(),
+            AggressiveFoldPass(),
         ]
         # Only include passes whose minimum level is met
         return [p for p in all_passes if p.min_level <= self._opt_level]

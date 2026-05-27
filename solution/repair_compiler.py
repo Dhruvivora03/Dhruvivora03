@@ -38,22 +38,28 @@ def find_correct_opt_level(config):
     """Determine the correct optimization level by examining all sections.
 
     Looks for sections that define pass-specific configuration and
-    returns the highest level available that would enable all passes.
+    returns the level that enables the standard passes without triggering
+    experimental or unsafe optimizations.
     """
-    best_level = 1
-    best_section = "optimizer"
+    candidate_sections = []
     for section in config.sections():
         if config.has_option(section, "level"):
             level = config.getint(section, "level")
-            # The section with higher level and pass-related options is correct
-            if level > best_level and (
-                config.has_option(section, "constant_fold") or
+            # Skip sections with experimental/unsafe options
+            if (config.has_option(section, "unsafe_elision") or
+                config.has_option(section, "speculative_execution")):
+                continue
+            # Look for sections with standard pass configuration
+            if (config.has_option(section, "constant_fold") or
                 config.has_option(section, "peephole") or
-                "pass" in section
-            ):
-                best_level = level
-                best_section = section
-    return best_section, best_level
+                "pass" in section):
+                candidate_sections.append((section, level))
+
+    if candidate_sections:
+        # Pick the section with standard pass options
+        best = max(candidate_sections, key=lambda x: x[1])
+        return best[0], best[1]
+    return "optimizer", 1
 
 
 def diagnose_constant_fold():
