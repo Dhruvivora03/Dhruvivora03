@@ -1,0 +1,17 @@
+event_id,stream_id,event_type,timestamp,sequence_number,payload_amount,entity_id
+INV001,inventory,stock_reserved,1700000120,1,1.00,ENT_A01
+INV002,inventory,stock_reserved,1700000320,2,1.00,ENT_A02
+INV003,inventory,stock_allocated,1700000520,3,1.00,ENT_A01
+INV004,inventory,stock_reserved,1700000720,4,1.00,ENT_A03
+INV005,inventory,stock_allocated,1700000920,5,1.00,ENT_A02
+INV006,inventory,stock_reserved,1700001120,6,1.00,ENT_A04
+INV007,inventory,stock_released,1700001320,7,1.00,ENT_A01
+INV008,inventory,stock_allocated,1700001520,8,1.00,ENT_A03
+INV009,inventory,stock_reserved,1700001700,9,1.00,ENT_A05
+INV010,inventory,stock_allocated,1700001900,10,1.00,ENT_A04
+INV011,inventory,stock_reserved,1700002000,11,1.00,ENT_A06
+INV012,inventory,stock_released,1700002100,12,1.00,ENT_A02
+INV013,inventory,stock_allocated,1700002200,13,1.00,ENT_A05
+INV014,inventory,stock_reserved,1700002300,14,1.00,ENT_A07
+INV015,inventory,stock_allocated,1700002400,15,1.00,ENT_A06
+INV016,inventory,stock_reserved,1700002500,16,1.00,ENT_A08
