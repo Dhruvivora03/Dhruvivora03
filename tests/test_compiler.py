@@ -217,3 +217,18 @@ def test_total_instructions_eliminated():
         f"folding, active peephole pass, proper variable resolution, "
         f"and independent per-file statistics."
     )
+
+    # Verify exact per-file instruction counts
+    data = _load_results()
+    complex_unit = _get_unit(data, "complex.src")
+    assert complex_unit is not None, "complex.src missing"
+    assert complex_unit["optimized_count"] == 32, (
+        f"complex.src should have 32 optimized instructions, "
+        f"got {complex_unit['optimized_count']}."
+    )
+    vars_unit = _get_unit(data, "variables.src")
+    assert vars_unit is not None, "variables.src missing"
+    assert vars_unit["optimized_count"] == 24, (
+        f"variables.src should have 24 optimized instructions, "
+        f"got {vars_unit['optimized_count']}."
+    )

@@ -189,17 +189,27 @@ def apply_optimizer_isolation_fix():
     """Apply fix: ensure optimizer state is fresh for each compilation unit.
 
     Detects if the optimizer is shared across files by checking the
-    compile_all method for per-file reinitialization.
+    compile_all method for per-file reinitialization. Also ensures the
+    config path is available for creating new optimizer instances.
     """
     path = "/app/runtime/compiler.py"
     with open(path, "r") as f:
         content = f.read()
+
+    # First, ensure config_path is stored as instance attribute
+    if "self._config_path" not in content:
+        content = content.replace(
+            "self._optimizer = Optimizer(config_path)",
+            "self._config_path = config_path\n        self._optimizer = Optimizer(config_path)"
+        )
 
     # Extract the compile_all method body
     compile_all_section = content.split("def compile_all")[1].split("\n    def ")[0]
 
     # Check if optimizer is already reset per file
     if "Optimizer(self._config_path)" in compile_all_section:
+        with open(path, "w") as f:
+            f.write(content)
         return
 
     # Find where _compile_file is called and insert optimizer reset before it
@@ -216,8 +226,9 @@ def apply_optimizer_isolation_fix():
             f"{indent}{new_block}",
             1
         )
-        with open(path, "w") as f:
-            f.write(content)
+
+    with open(path, "w") as f:
+        f.write(content)
 
 
 def apply_variable_resolution_fix():

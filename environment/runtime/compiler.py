@@ -39,7 +39,6 @@ class BatchCompiler:
     def __init__(self, config_path):
         self._config = configparser.ConfigParser()
         self._config.read(config_path)
-        self._config_path = config_path
         self._source_dir = os.path.join(
             os.path.dirname(config_path),
             self._config.get("compiler", "source_dir")
