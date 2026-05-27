@@ -1,8 +1,8 @@
-# Spatial Index Repair — Debugging Task
+# Event Store Replay Repair — Debugging Task
 
 ## Overview
 
-A geospatial indexing engine ingests point location data from multiple feed sources, constructs an R-tree spatial index, and executes range and k-nearest-neighbor (KNN) queries against the indexed data. The system processes feeds in configurable batches and produces JSON output containing query results and index structure statistics.
+An event sourcing engine ingests domain events from multiple stream sources (orders, payments, inventory), stores them in an append-only event store, replays them in deterministic global order, and builds materialized view projections with aggregate statistics. The system processes streams in configurable replay windows and produces JSON output containing projection results and store statistics.
 
 ## System Environment
 
@@ -12,95 +12,93 @@ A geospatial indexing engine ingests point location data from multiple feed sour
 
 ## Processing Stages
 
-1. **Feed Loading** — Reads CSV feed files (sensor, landmark, zone) based on the active feeds configuration. Each feed provides geospatial point records with coordinates, labels, timestamps, and per-feed insertion order.
+1. **Stream Loading** — Reads CSV stream files (orders, payments, inventory) based on the active streams configuration. Each stream provides domain events with timestamps, sequence numbers, and payload data.
 
-2. **Index Construction** — Builds an R-tree spatial index from the loaded records. The tree uses rtree-specific parameters from the `[indexing.rtree]` configuration section for leaf node capacity and splitting behavior.
+2. **Event Store Population** — Appends loaded events to an append-only store. Snapshots are created at configurable intervals using parameters from the `[projection.incremental]` configuration section for incremental processing support.
 
-3. **Query Execution** — Runs range queries (bounding box containment) and KNN queries (nearest neighbors by Euclidean distance). KNN results are sorted deterministically by `(distance, feed_id, insert_order)` to handle ties.
+3. **Replay Ordering** — Produces a deterministic global event sequence from all streams. Events are sorted by `(timestamp, stream_id, sequence_number)` to ensure consistent ordering when multiple streams contain events at the same timestamp.
 
-4. **Batch Statistics** — Processes range query results in configurable batch windows and computes per-feed point counts. The final statistics represent the counts from the last processing window.
+4. **Projection Building** — Builds materialized views by replaying ordered events. Groups events by entity and computes running totals for amounts and event counts.
 
-5. **Output Generation** — Writes query results and index statistics to JSON files in the output directory.
+5. **Window Aggregates** — Processes replay events in configurable window sizes and computes per-stream event counts. The final aggregates represent the counts from the last processing window only.
+
+6. **Output Generation** — Writes projection results and store statistics to JSON files in the output directory.
 
 ## Problem
 
 The engine runs without errors but produces incorrect results:
 
-- Some feed records appear to be missing from the index entirely
-- The R-tree structure has unexpected properties (no node splitting despite many records)
-- Batch statistics report inflated counts that exceed the actual number of records
-- KNN query results show non-deterministic ordering for equidistant points
+- Some stream events appear to be missing from the store entirely
+- The snapshot mechanism never triggers despite sufficient events being stored
+- Window aggregates report inflated counts that exceed actual per-window event numbers
+- The replay sequence shows non-deterministic ordering for events at the same timestamp
 
 ## Expected Correct Output
 
 When all defects are fixed:
 
-- All 55 records (20 sensor + 18 landmark + 17 zone) should be indexed
-- The R-tree should use a leaf capacity of 8, producing a tree of depth 2 with 9 splits
-- Batch window statistics should report per-feed counts from the final window only: sensor=20, landmark=18, zone=17
-- KNN results should be deterministically ordered by (distance, feed_id, insert_order)
+- All 56 events (22 orders + 18 payments + 16 inventory) should be stored
+- The event store should use a snapshot interval of 10, creating 5 snapshots (at events 10, 20, 30, 40, 50)
+- Window aggregates should report per-stream counts from the final window only (window_size=20, last window has 16 events): orders=4, payments=5, inventory=7
+- The replay sequence should be deterministically ordered by (timestamp, stream_id, sequence_number)
 
 ## Output Schema
 
-### `/app/runtime/output/query_results.json`
+### `/app/runtime/output/projection_results.json`
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `range_queries` | list | List of range query result objects |
-| `range_queries[].query_id` | string | Identifier of the range query |
-| `range_queries[].hit_count` | integer | Number of points found in range |
-| `range_queries[].hits` | list | List of hit record objects |
-| `range_queries[].hits[].id` | string | Record identifier |
-| `range_queries[].hits[].feed_id` | string | Source feed name |
-| `range_queries[].hits[].x` | float | X coordinate |
-| `range_queries[].hits[].y` | float | Y coordinate |
-| `range_queries[].hits[].label` | string | Record label |
-| `knn_queries` | list | List of KNN query result objects |
-| `knn_queries[].query_id` | string | Identifier of the KNN query |
-| `knn_queries[].center` | object | Query center point with x, y |
-| `knn_queries[].neighbors` | list | Ordered list of nearest neighbors |
-| `knn_queries[].neighbors[].id` | string | Neighbor record identifier |
-| `knn_queries[].neighbors[].feed_id` | string | Neighbor source feed |
-| `knn_queries[].neighbors[].x` | float | Neighbor X coordinate |
-| `knn_queries[].neighbors[].y` | float | Neighbor Y coordinate |
-| `knn_queries[].neighbors[].label` | string | Neighbor label |
-| `knn_queries[].neighbors[].distance` | float | Euclidean distance from center |
-| `total_records_indexed` | integer | Total number of records in the index |
+| `replay_sequence` | list | Ordered list of replayed event objects |
+| `replay_sequence[].event_id` | string | Unique event identifier |
+| `replay_sequence[].stream_id` | string | Source stream name |
+| `replay_sequence[].event_type` | string | Type of domain event |
+| `replay_sequence[].timestamp` | integer | Event timestamp |
+| `replay_sequence[].sequence_number` | integer | Per-stream sequence number |
+| `replay_sequence[].payload_amount` | float | Event payload amount |
+| `projections` | list | List of entity projection objects |
+| `projections[].entity_id` | string | Entity identifier |
+| `projections[].stream_id` | string | Primary stream for entity |
+| `projections[].event_count` | integer | Total events for entity |
+| `projections[].total_amount` | float | Sum of payload amounts |
+| `projections[].last_event_type` | string | Most recent event type |
+| `projections[].last_timestamp` | integer | Most recent event timestamp |
+| `total_events_replayed` | integer | Total number of events in store |
 
-### `/app/runtime/output/index_stats.json`
+### `/app/runtime/output/store_stats.json`
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `tree_depth` | integer | Depth of the R-tree structure |
-| `max_leaf_capacity` | integer | Maximum entries per leaf node |
-| `split_count` | integer | Number of node splits during construction |
-| `total_indexed` | integer | Total number of indexed records |
-| `batch_window_stats` | object | Per-feed point counts from final batch window |
-| `batch_window_stats.sensor` | integer | Sensor feed count in final window |
-| `batch_window_stats.landmark` | integer | Landmark feed count in final window |
-| `batch_window_stats.zone` | integer | Zone feed count in final window |
-| `window_feed_summary` | object | Per-feed summary from range query execution |
+| `total_events` | integer | Total events in the store |
+| `snapshot_interval` | integer | Configured snapshot interval |
+| `snapshots_created` | integer | Number of snapshots taken |
+| `stream_counts` | object | Per-stream event counts |
+| `stream_counts.orders` | integer | Orders stream event count |
+| `stream_counts.payments` | integer | Payments stream event count |
+| `stream_counts.inventory` | integer | Inventory stream event count |
+| `window_aggregates` | object | Per-stream counts from final replay window |
+| `window_aggregates.orders` | integer | Orders events in final window |
+| `window_aggregates.payments` | integer | Payments events in final window |
+| `window_aggregates.inventory` | integer | Inventory events in final window |
+| `replay_checksum` | string | MD5 checksum of replay event ID sequence |
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `/app/runtime/config.ini` | Configuration with feed list, indexing parameters, and query settings |
-| `/app/runtime/feed_loader.py` | Loads and filters spatial records from CSV feeds |
-| `/app/runtime/rtree_index.py` | R-tree index implementation with insert, range query, and KNN |
-| `/app/runtime/query_engine.py` | Executes queries in batch windows and computes statistics |
-| `/app/runtime/run_spatial.py` | Main entry point orchestrating the full process |
-| `/app/runtime/data/sensor_feed.csv` | Sensor location records (20 entries) |
-| `/app/runtime/data/landmark_feed.csv` | Landmark location records (18 entries) |
-| `/app/runtime/data/zone_feed.csv` | Zone location records (17 entries) |
-| `/app/runtime/data/range_queries.csv` | Range query definitions (5 queries) |
-| `/app/runtime/data/knn_queries.csv` | KNN query definitions (3 queries) |
+| `/app/runtime/config.ini` | Configuration with stream list, projection parameters, and replay settings |
+| `/app/runtime/stream_loader.py` | Loads and filters domain events from CSV streams |
+| `/app/runtime/event_store.py` | Append-only event store with snapshot support and replay ordering |
+| `/app/runtime/projection_engine.py` | Builds projections in replay windows and computes aggregates |
+| `/app/runtime/run_replay.py` | Main entry point orchestrating the full process |
+| `/app/runtime/data/orders_stream.csv` | Order domain events (22 entries) |
+| `/app/runtime/data/payments_stream.csv` | Payment domain events (18 entries) |
+| `/app/runtime/data/inventory_stream.csv` | Inventory domain events (16 entries) |
 
 ## Your Task
 
-Identify and fix defects in the runtime source files under `/app/runtime/`. The data files and query definitions are correct — the bugs are in the Python source code and its interaction with the configuration file. Focus on:
+Identify and fix defects in the runtime source files under `/app/runtime/`. The data files are correct — the bugs are in the Python source code and its interaction with the configuration file. Focus on:
 
-- How feed names are parsed from the configuration
-- Which configuration section provides indexing parameters
-- How batch window statistics are aggregated across windows
-- How KNN results handle distance ties in sorting
+- How stream names are parsed from the configuration
+- Which configuration section provides snapshot interval parameters
+- How window aggregates are computed across replay windows
+- How replay ordering handles timestamp ties between different streams
