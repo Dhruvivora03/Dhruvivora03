@@ -1,34 +1,34 @@
 author_name = "Dhruvkumar Patel"
 author_email = "dhruvpatel2284@gmail.com"
-category = "event_sourcing"
+category = "compiler_internals"
 difficulty = "hard"
-tags = ["event-sourcing", "cqrs", "replay-engine", "stream-processing", "projections"]
+tags = ["compiler", "bytecode", "optimizer", "constant-folding", "stack-machine"]
 
-difficulty_explanation = "Requires identifying four interacting bugs across three source files: a whitespace parsing issue in stream configuration, a wrong config section reference for snapshot parameters, an accumulation logic error in window aggregates, and a missing sort key component for deterministic replay ordering. The bugs are subtle and their effects compound across the replay sequence."
-solution_explanation = "Fix stream_loader.py to strip whitespace from comma-split active streams list, fix event_store.py to read snapshot_interval from [projection.incremental] instead of [projection], fix projection_engine.py to use assignment instead of accumulation for per-window aggregate counts, and fix event_store.py replay sort key to include stream_id between timestamp and sequence_number."
-verification_explanation = "Tests validate output correctness at multiple levels: basic structure, individual bug effects (inventory events present, correct snapshot interval, correct window aggregates), and combined correctness (replay ordering at timestamp ties, total event count, deterministic checksum). All 10 tests must pass."
-expert_time_estimate_hours = 3.0
+difficulty_explanation = "Requires identifying four interacting bugs across four source files: a whitespace parsing issue in the file list configuration, a wrong config section reference for optimization level, reversed operand ordering in constant folding that requires understanding stack machine semantics, and a case-sensitivity mismatch between parser symbol table normalization and emitter variable resolution. The bugs compound — fixing one reveals the effects of others."
+solution_explanation = "Fix compiler.py to strip whitespace from comma-split source file list, fix optimizer.py to read optimization level from [optimizer.passes] instead of [optimizer], fix the constant fold pass operand order to use (first_pushed, second_pushed) instead of reversed, fix compiler.py to create a fresh optimizer per file to prevent stats accumulation, and fix emitter.py to normalize variable reference names to lowercase before symbol table lookup."
+verification_explanation = "Tests validate output at multiple levels: basic structure and file presence, individual bug effects (complex.src compiled, correct folded constants, peephole active), and combined correctness (proper variable resolution, independent per-file stats, correct total eliminations). All 10 tests must pass."
+expert_time_estimate_hours = 3.5
 
 [task]
-name = "event-store-replay-repair"
-description = "Debug an event sourcing replay engine that ingests domain events from multiple streams, builds materialized view projections, and produces aggregate statistics. The system has four subtle defects causing missing stream data, disabled snapshots, inflated aggregates, and non-deterministic replay ordering."
+name = "bytecode-optimizer-repair"
+description = "Debug a bytecode compiler optimization system that compiles arithmetic programs to stack-based bytecode and applies optimization passes. The system has subtle defects in source file parsing, constant folding operand semantics, optimization level configuration, pass statistics isolation, and variable name resolution across the parser-emitter boundary."
 
 [task.difficulty]
 level = "hard"
-reasoning = "Four interacting bugs across multiple files require understanding of configuration parsing, event store internals, window-based aggregation semantics, and sort stability for deterministic replay. Bugs are not indicated by comments or obvious code smells."
+reasoning = "Four bugs span parser, emitter, optimizer, and compiler modules. The constant folding bug requires understanding LIFO stack semantics. The variable resolution bug requires tracing data flow across three files. The config section bug has no revealing documentation. The stats accumulation bug requires understanding shared mutable state across compilation units."
 
 [task.runtime]
-entrypoint = "python3 -m runtime.run_replay"
+entrypoint = "python3 -m runtime.run_compiler"
 language = "python"
 dependencies = "stdlib-only"
 
 [task.validator]
 command = "bash tests/test.sh"
-description = "Runs the event store replay engine and validates projection results and store statistics against expected correct values using pytest."
+description = "Runs the bytecode compiler and validates compilation results and statistics against expected correct values using pytest."
 
 [task.repair]
 command = "bash solution/solve.sh"
-description = "Patches four bugs in the runtime source files and re-runs the engine to produce correct output."
+description = "Patches bugs in the runtime source files and re-runs the compiler to produce correct output."
 
 [task.resources]
 timeout = 300

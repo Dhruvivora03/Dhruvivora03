@@ -1,0 +1,12 @@
+# Complex expressions with nested operations
+# Includes identity operations for peephole optimization
+p = 7 * 1
+q = p + 0
+r = 20 - 6
+s = r * 0
+t = (3 + 4) * (2 + 1)
+print(t)
+u = 48 / 6
+print(u)
+v = p + q + r + s + t + u
+print(v)

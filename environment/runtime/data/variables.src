@@ -1,0 +1,10 @@
+# Variable assignment and reuse
+# Uses uppercase variable names for testing
+X = 50 - 8
+Y = X + 3
+Z = Y * 2
+print(Z)
+W = 100 / 4
+print(W)
+Result = X + Y + Z
+print(Result)

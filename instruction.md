@@ -1,8 +1,8 @@
-# Event Store Replay Repair — Debugging Task
+# Bytecode Optimizer Repair — Debugging Task
 
 ## Overview
 
-An event sourcing engine ingests domain events from multiple stream sources (orders, payments, inventory), stores them in an append-only event store, replays them in deterministic global order, and builds materialized view projections with aggregate statistics. The system processes streams in configurable replay windows and produces JSON output containing projection results and store statistics.
+A batch bytecode compiler processes arithmetic expression programs, compiling them to stack-based bytecode instructions and applying configurable optimization passes. The system reads source files, parses them into ASTs, emits bytecode, runs optimization passes (constant folding, dead store elimination, peephole), and outputs compilation results with aggregate statistics.
 
 ## System Environment
 
@@ -12,93 +12,87 @@ An event sourcing engine ingests domain events from multiple stream sources (ord
 
 ## Processing Stages
 
-1. **Stream Loading** — Reads CSV stream files (orders, payments, inventory) based on the active streams configuration. Each stream provides domain events with timestamps, sequence numbers, and payload data.
+1. **Source Loading** — Reads source program files from the configured data directory based on the source file list in the compiler configuration.
 
-2. **Event Store Population** — Appends loaded events to an append-only store. Snapshots are created at configurable intervals using parameters from the `[projection.incremental]` configuration section for incremental processing support.
+2. **Parsing** — Parses each source file into an AST representation. Supports variable assignments, print statements, and arithmetic expressions with standard operator precedence.
 
-3. **Replay Ordering** — Produces a deterministic global event sequence from all streams. Events are sorted by `(timestamp, stream_id, sequence_number)` to ensure consistent ordering when multiple streams contain events at the same timestamp.
+3. **Bytecode Emission** — Walks the AST and emits stack-based bytecode instructions. Variable references are resolved against the symbol table built during parsing.
 
-4. **Projection Building** — Builds materialized views by replaying ordered events. Groups events by entity and computes running totals for amounts and event counts.
+4. **Optimization** — Applies registered optimization passes to the raw bytecode. Passes include constant folding (collapses compile-time constant expressions), dead store elimination (removes unused variable stores), and peephole optimization (simplifies identity operations like x+0, x*1). The optimization level from the pass configuration determines which passes are active.
 
-5. **Window Aggregates** — Processes replay events in configurable window sizes and computes per-stream event counts. The final aggregates represent the counts from the last processing window only.
+5. **Statistics Collection** — Collects per-file and aggregate compilation statistics including instruction counts and per-pass elimination counts. Each file's statistics should reflect only that file's optimizations independently.
 
-6. **Output Generation** — Writes projection results and store statistics to JSON files in the output directory.
+6. **Output Generation** — Writes compilation results and statistics as JSON files.
 
 ## Problem
 
-The engine runs without errors but produces incorrect results:
+The compiler runs without errors but produces incorrect output:
 
-- Some stream events appear to be missing from the store entirely
-- The snapshot mechanism never triggers despite sufficient events being stored
-- Window aggregates report inflated counts that exceed actual per-window event numbers
-- The replay sequence shows non-deterministic ordering for events at the same timestamp
+- One source file is not being compiled despite being configured
+- Constant folding produces wrong results for subtraction and division expressions
+- The peephole optimization pass is not running despite being configured
+- Some variable references emit incorrect bytecode, producing wrong computed values
 
 ## Expected Correct Output
 
 When all defects are fixed:
 
-- All 56 events (22 orders + 18 payments + 16 inventory) should be stored
-- The event store should use a snapshot interval of 10, creating 5 snapshots (at events 10, 20, 30, 40, 50)
-- Window aggregates should report per-stream counts from the final window only (window_size=20, last window has 16 events): orders=4, payments=5, inventory=7
-- The replay sequence should be deterministically ordered by (timestamp, stream_id, sequence_number)
+- All 3 source files (arithmetic.src, complex.src, variables.src) should be compiled
+- Constant folding should produce correct values: `10+5=15`, `100-37=63`, `50-8=42`, `48/6=8.0`
+- The peephole pass should be active (optimization level 3 enables all passes)
+- All variable references should resolve correctly through the symbol table
+- Per-file pass statistics should be independent (not accumulated across files)
+- Total instructions eliminated across all files: 24
 
 ## Output Schema
 
-### `/app/runtime/output/projection_results.json`
+### `/app/runtime/output/compilation_results.json`
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `replay_sequence` | list | Ordered list of replayed event objects |
-| `replay_sequence[].event_id` | string | Unique event identifier |
-| `replay_sequence[].stream_id` | string | Source stream name |
-| `replay_sequence[].event_type` | string | Type of domain event |
-| `replay_sequence[].timestamp` | integer | Event timestamp |
-| `replay_sequence[].sequence_number` | integer | Per-stream sequence number |
-| `replay_sequence[].payload_amount` | float | Event payload amount |
-| `projections` | list | List of entity projection objects |
-| `projections[].entity_id` | string | Entity identifier |
-| `projections[].stream_id` | string | Primary stream for entity |
-| `projections[].event_count` | integer | Total events for entity |
-| `projections[].total_amount` | float | Sum of payload amounts |
-| `projections[].last_event_type` | string | Most recent event type |
-| `projections[].last_timestamp` | integer | Most recent event timestamp |
-| `total_events_replayed` | integer | Total number of events in store |
+| `compilation_units` | list | List of compiled file results |
+| `compilation_units[].filename` | string | Source filename |
+| `compilation_units[].raw_instructions` | list | Unoptimized bytecode instruction list |
+| `compilation_units[].optimized_instructions` | list | Optimized bytecode instruction list |
+| `compilation_units[].symbol_table` | object | Variables defined in the file |
+| `compilation_units[].raw_count` | integer | Number of raw instructions |
+| `compilation_units[].optimized_count` | integer | Number of optimized instructions |
 
-### `/app/runtime/output/store_stats.json`
+### `/app/runtime/output/compiler_stats.json`
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `total_events` | integer | Total events in the store |
-| `snapshot_interval` | integer | Configured snapshot interval |
-| `snapshots_created` | integer | Number of snapshots taken |
-| `stream_counts` | object | Per-stream event counts |
-| `stream_counts.orders` | integer | Orders stream event count |
-| `stream_counts.payments` | integer | Payments stream event count |
-| `stream_counts.inventory` | integer | Inventory stream event count |
-| `window_aggregates` | object | Per-stream counts from final replay window |
-| `window_aggregates.orders` | integer | Orders events in final window |
-| `window_aggregates.payments` | integer | Payments events in final window |
-| `window_aggregates.inventory` | integer | Inventory events in final window |
-| `replay_checksum` | string | MD5 checksum of replay event ID sequence |
+| `files_compiled` | integer | Number of source files compiled |
+| `file_stats` | list | Per-file compilation statistics |
+| `file_stats[].filename` | string | Source filename |
+| `file_stats[].raw_instructions` | integer | Raw instruction count |
+| `file_stats[].optimized_instructions` | integer | Optimized instruction count |
+| `file_stats[].eliminated` | integer | Instructions eliminated for this file |
+| `file_stats[].pass_stats` | object | Per-pass elimination counts for this file |
+| `total_instructions_eliminated` | integer | Sum of eliminations across all files |
+| `pass_eliminations` | object | Per-pass elimination counts (last file only) |
+| `optimization_level` | integer | Active optimization level |
+| `active_passes` | list | Names of active optimization passes |
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `/app/runtime/config.ini` | Configuration with stream list, projection parameters, and replay settings |
-| `/app/runtime/stream_loader.py` | Loads and filters domain events from CSV streams |
-| `/app/runtime/event_store.py` | Append-only event store with snapshot support and replay ordering |
-| `/app/runtime/projection_engine.py` | Builds projections in replay windows and computes aggregates |
-| `/app/runtime/run_replay.py` | Main entry point orchestrating the full process |
-| `/app/runtime/data/orders_stream.csv` | Order domain events (22 entries) |
-| `/app/runtime/data/payments_stream.csv` | Payment domain events (18 entries) |
-| `/app/runtime/data/inventory_stream.csv` | Inventory domain events (16 entries) |
+| `/app/runtime/config.ini` | Compiler and optimizer configuration |
+| `/app/runtime/parser.py` | Source code parser producing AST with symbol table |
+| `/app/runtime/emitter.py` | AST-to-bytecode emission with variable resolution |
+| `/app/runtime/optimizer.py` | Optimization passes (constant fold, dead store, peephole) |
+| `/app/runtime/compiler.py` | Batch compilation orchestration and statistics |
+| `/app/runtime/run_compiler.py` | Entry point |
+| `/app/runtime/data/arithmetic.src` | Arithmetic test program |
+| `/app/runtime/data/complex.src` | Complex expressions with identity operations |
+| `/app/runtime/data/variables.src` | Variable assignment and reference program |
 
 ## Your Task
 
-Identify and fix defects in the runtime source files under `/app/runtime/`. The data files are correct — the bugs are in the Python source code and its interaction with the configuration file. Focus on:
+Identify and fix defects in the runtime source files under `/app/runtime/`. The source program files and entry point are correct — the bugs are in the compiler internals and their interaction with the configuration. Focus on:
 
-- How stream names are parsed from the configuration
-- Which configuration section provides snapshot interval parameters
-- How window aggregates are computed across replay windows
-- How replay ordering handles timestamp ties between different streams
+- How source file names are parsed from configuration
+- How the constant folding pass handles operand ordering for stack-based operations
+- How optimization pass statistics are tracked across multiple compilation units
+- How variable names flow through parsing, symbol table construction, and bytecode emission
