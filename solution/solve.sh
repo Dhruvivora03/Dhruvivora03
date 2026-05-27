@@ -1,3 +1,3 @@
 #!/bin/bash
 cd /app
-python3 /solution/repair_event_store.py
+python3 /solution/repair_compiler.py
