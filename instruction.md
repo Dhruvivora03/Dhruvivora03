@@ -18,9 +18,9 @@ A batch bytecode compiler processes arithmetic expression programs, compiling th
 
 3. **Bytecode Emission** — Walks the AST and emits stack-based bytecode instructions. Variable references are resolved against the symbol table built during parsing.
 
-4. **Optimization** — Applies registered optimization passes to the raw bytecode. Passes include constant folding (collapses compile-time constant expressions), dead store elimination (removes unused variable stores), and peephole optimization (simplifies identity operations like x+0, x*1). The optimization level from the pass configuration determines which passes are active.
+4. **Optimization** — Applies registered optimization passes to the raw bytecode. Passes include constant folding (collapses compile-time constant expressions), dead store elimination (removes unused variable stores), and peephole optimization (simplifies identity operations like x+0, x*1). The optimization level determines which passes are active based on their minimum level requirements.
 
-5. **Statistics Collection** — Collects per-file and aggregate compilation statistics including instruction counts and per-pass elimination counts. Each file's statistics should reflect only that file's optimizations independently.
+5. **Statistics Collection** — Collects per-file and aggregate compilation statistics including instruction counts and per-pass elimination counts.
 
 6. **Output Generation** — Writes compilation results and statistics as JSON files.
 
@@ -39,7 +39,7 @@ When all defects are fixed:
 
 - All 3 source files (arithmetic.src, complex.src, variables.src) should be compiled
 - Constant folding should produce correct values: `10+5=15`, `100-37=63`, `50-8=42`, `48/6=8.0`
-- The peephole pass should be active (optimization level 3 enables all passes)
+- The peephole pass should be active (the correct optimization level enables all passes)
 - All variable references should resolve correctly through the symbol table
 - Per-file pass statistics should be independent (not accumulated across files)
 - Total instructions eliminated across all files: 24
@@ -90,9 +90,4 @@ When all defects are fixed:
 
 ## Your Task
 
-Identify and fix defects in the runtime source files under `/app/runtime/`. The source program files and entry point are correct — the bugs are in the compiler internals and their interaction with the configuration. Focus on:
-
-- How source file names are parsed from configuration
-- How the constant folding pass handles operand ordering for stack-based operations
-- How optimization pass statistics are tracked across multiple compilation units
-- How variable names flow through parsing, symbol table construction, and bytecode emission
+Identify and fix defects in the runtime source files under `/app/runtime/`. The source program files and entry point are correct — the bugs are in the compiler internals and their interaction with the configuration.

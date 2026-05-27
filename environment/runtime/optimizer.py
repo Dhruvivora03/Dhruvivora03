@@ -30,10 +30,6 @@ class ConstantFoldPass(OptimizationPass):
 
     Detects patterns of PUSH_CONST, PUSH_CONST, OP and replaces
     with a single PUSH_CONST containing the computed result.
-
-    Stack semantics: left operand is deeper on stack (pushed first),
-    right operand is on top (pushed second). Binary ops pop both
-    and push the result.
     """
 
     min_level = 1
@@ -55,7 +51,6 @@ class ConstantFoldPass(OptimizationPass):
                     instructions[i + 2].opcode in self._foldable_ops):
 
                 # Fold: compute the result at compile time
-                # Stack: first push goes deeper, second push on top
                 first_pushed = instructions[i].operand
                 second_pushed = instructions[i + 1].operand
                 op = instructions[i + 2].opcode

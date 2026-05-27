@@ -98,14 +98,12 @@ def test_complex_src_compiled():
     stats = _load_stats()
     assert stats["files_compiled"] == 3, (
         f"Expected 3 files compiled, got {stats['files_compiled']}. "
-        f"Check source file name parsing in /app/runtime/compiler.py — "
-        f"the configuration list may have formatting issues."
+        f"One source file is not being loaded from the configuration."
     )
     data = _load_results()
     unit = _get_unit(data, "complex.src")
     assert unit is not None, (
-        "complex.src missing from compilation results. "
-        "Verify source_files parsing handles all entries correctly."
+        "complex.src missing from compilation results."
     )
 
 
@@ -113,8 +111,6 @@ def test_constant_fold_subtraction():
     """Verify that constant folding computes subtraction correctly.
 
     The expression '100 - 37' should fold to PUSH_CONST 63.
-    Stack semantics: left operand (100) pushed first, right operand (37)
-    pushed second. SUB computes left - right = 100 - 37 = 63.
     """
     data = _load_results()
     unit = _get_unit(data, "arithmetic.src")
@@ -129,9 +125,8 @@ def test_constant_fold_subtraction():
     ]
     assert 63 in folded_values, (
         f"Expected PUSH_CONST 63 from folding '100 - 37', but found "
-        f"constants: {folded_values}. Check operand ordering in "
-        f"/app/runtime/optimizer.py ConstantFoldPass — verify which "
-        f"operand is left vs right for non-commutative operations."
+        f"constants: {folded_values}. The constant folding pass produces "
+        f"incorrect results for non-commutative operations."
     )
 
 
@@ -145,8 +140,7 @@ def test_peephole_pass_active():
     stats = _load_stats()
     assert "peephole" in stats["active_passes"], (
         f"Peephole pass not active. Active passes: {stats['active_passes']}. "
-        f"Current optimization_level: {stats['optimization_level']}. "
-        f"The peephole pass requires level >= 2."
+        f"Current optimization_level: {stats['optimization_level']}."
     )
     assert stats["optimization_level"] == 3, (
         f"Expected optimization_level=3, got {stats['optimization_level']}."
@@ -176,10 +170,8 @@ def test_variables_src_uses_load_var():
     load_var_ops = [i for i in opt if i["opcode"] == "LOAD_VAR"]
     assert len(load_var_ops) >= 5, (
         f"Expected at least 5 LOAD_VAR instructions in variables.src, "
-        f"got {len(load_var_ops)}. Variable references should resolve "
-        f"through the symbol table. Check how variable names are stored "
-        f"during parsing in /app/runtime/parser.py and how they are "
-        f"looked up during emission in /app/runtime/emitter.py."
+        f"got {len(load_var_ops)}. Variable references are not resolving "
+        f"correctly through the symbol table."
     )
 
 
@@ -206,9 +198,7 @@ def test_per_file_pass_stats_independent():
     arith_cf = arith_stats["pass_stats"].get("constant_fold", 0)
     assert arith_cf == 6, (
         f"arithmetic.src pass_stats['constant_fold'] should be 6, "
-        f"got {arith_cf}. Per-file statistics should not accumulate "
-        f"across compilation units — check optimizer instance lifecycle "
-        f"in /app/runtime/compiler.py."
+        f"got {arith_cf}. Per-file pass statistics are not independent."
     )
 
 
