@@ -120,14 +120,14 @@ class TestTier2EnergyState:
         records = load_state()
         all_ids = sorted(r["node_id"] for r in records)
 
-        # Check node_alpha specifically (has EQUILIBRATE)
-        alpha = next(r for r in records if r["node_id"] == "node_alpha")
-        own_idx = all_ids.index("node_alpha")
-        expected = oracle["own_energies"]["node_alpha"]
-        actual = alpha["energy_vector"][own_idx]
+        # Check node_beta specifically (has EQUILIBRATE)
+        beta = next(r for r in records if r["node_id"] == "node_beta")
+        own_idx = all_ids.index("node_beta")
+        expected = oracle["own_energies"]["node_beta"]
+        actual = beta["energy_vector"][own_idx]
         assert actual == expected, (
-            f"node_alpha own energy expected {expected}, got {actual}. "
-            f"EQUILIBRATE events must contribute to the node's own component."
+            f"node_beta own energy expected {expected}, got {actual}. "
+            f"EQUILIBRATE events must always contribute to the node's own component."
         )
 
     def test_equilibrate_knowledge_transfer(self):

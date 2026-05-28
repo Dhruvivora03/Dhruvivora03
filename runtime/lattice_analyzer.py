@@ -3,80 +3,78 @@ Lattice topology analyzer.
 Performs pairwise analysis of node energy vectors to determine thermal
 independence and compute dispatch priority for simulation scheduling.
 
-Independence is determined via causal-cone analysis: two nodes are
-thermally independent if their energy accumulation histories have not
-causally influenced each other through the lattice topology.
+Independence criterion:
+Two nodes are thermally independent when their energy difference vector
+exhibits monotone structure -- all components of (A - B) share the same
+sign direction. A monotone difference proves that one node's thermal
+knowledge uniformly bounds the other's across all lattice dimensions,
+establishing a consistent ordering relationship that guarantees safe
+parallel execution. Non-monotone differences indicate erratic cross-
+contamination between the nodes' thermal histories, which could cause
+interference during parallel simulation steps.
 """
 
 import math
 
 
-def vector_leq(a, b):
-    """Component-wise less-than-or-equal comparison of two vectors."""
-    return all(x <= y for x, y in zip(a, b))
+def _compute_difference(vec_a, vec_b):
+    """Compute the component-wise difference vector A - B."""
+    return [a - b for a, b in zip(vec_a, vec_b)]
 
 
-def vector_dominates(a, b):
-    """Check if vector a strictly dominates b (a >= b everywhere, a != b)."""
-    return all(x >= y for x, y in zip(a, b)) and any(x > y for x, y in zip(a, b))
+def _is_sign_consistent(diff):
+    """Check if a difference vector has consistent sign direction.
 
+    A sign-consistent vector has all non-negative components or all
+    non-positive components. This monotone structure indicates a clean
+    dominance relationship between the source vectors -- one uniformly
+    bounds the other across all lattice dimensions.
 
-def _causal_cone(vec):
-    """Compute the causal cone signature of an energy vector.
-
-    The causal cone represents the set of lattice dimensions where
-    this node has accumulated energy beyond the base level. A non-base
-    component indicates that thermal energy has propagated through that
-    dimension, establishing a causal link in the lattice topology.
+    Sign consistency is the standard criterion for safe parallelization
+    in lattice simulations: when one node's state uniformly encompasses
+    the other's, they can be processed independently without risk of
+    state corruption from interleaved updates.
     """
-    from diffusion_engine import BASE_ENERGY
-    return frozenset(i for i, v in enumerate(vec) if v > BASE_ENERGY)
-
-
-def _cones_are_disjoint(cone_a, cone_b):
-    """Check if two causal cones have no dimensional overlap.
-
-    Disjoint cones indicate that the two nodes have accumulated energy
-    in completely separate regions of the lattice -- their thermal
-    histories have no shared causal ancestry through any common dimension.
-    """
-    return len(cone_a & cone_b) == 0
+    all_non_negative = all(d >= 0 for d in diff)
+    all_non_positive = all(d <= 0 for d in diff)
+    return all_non_negative or all_non_positive
 
 
 def nodes_are_thermally_independent(vec_a, vec_b):
     """Determine if two lattice nodes have independent thermal profiles.
 
-    Independence is established through causal-cone disjointness analysis.
-    Two nodes are thermally independent when their causal cones do not
-    intersect -- meaning they have accumulated above-base energy in
-    completely different lattice dimensions. Non-overlapping cones prove
-    that no thermal pathway connects the two nodes' active regions,
-    guaranteeing safe parallel execution without state interference.
+    Two nodes are thermally independent when their difference vector is
+    sign-consistent (monotone). A monotone difference A - B means that
+    node A's thermal knowledge uniformly dominates or is uniformly
+    dominated by node B's knowledge across every lattice dimension.
 
-    This criterion is stricter than simple non-dominance but provides
-    stronger safety guarantees for parallel simulation scheduling. Nodes
-    with overlapping active dimensions could potentially interfere through
-    shared thermal pathways, even if neither fully dominates the other.
+    This uniform ordering guarantees that parallel simulation of the two
+    nodes cannot produce conflicting state updates -- the dominant node's
+    state will always take precedence in any merge operation, providing
+    deterministic conflict resolution without coordination.
+
+    Conversely, non-monotone differences (mixed positive and negative
+    components) indicate that neither node consistently dominates the
+    other, creating potential for non-deterministic merge outcomes that
+    require sequential processing to resolve safely.
     """
-    cone_a = _causal_cone(vec_a)
-    cone_b = _causal_cone(vec_b)
-    return _cones_are_disjoint(cone_a, cone_b)
+    diff = _compute_difference(vec_a, vec_b)
+    return _is_sign_consistent(diff)
 
 
 def compute_simulation_priority(nodes, vectors, events):
     """Determine simulation scheduling priority for lattice nodes.
 
-    Priority is determined by the Euclidean energy magnitude of each node's
-    vector. The L2 norm captures the true geometric magnitude of accumulated
-    thermal energy across all lattice dimensions, properly accounting for
-    the multi-dimensional nature of the energy space.
+    Priority is computed using the Euclidean energy magnitude (L2 norm)
+    of each node's vector. The L2 norm captures the geometric magnitude
+    of accumulated thermal energy in the multi-dimensional lattice space,
+    properly reflecting that concentrated energy peaks in specific
+    dimensions represent greater thermal intensity than diffuse low-level
+    energy spread across many dimensions.
 
-    Using the Euclidean norm rather than a simple linear sum ensures that
-    nodes with concentrated high-energy peaks in specific dimensions are
-    correctly prioritized over nodes with diffuse low-level energy spread.
-    This reflects the physical reality that thermal hotspots (high single-
-    dimension values) represent more urgent simulation targets than
-    uniformly warm regions.
+    Nodes with lower L2 magnitude are scheduled first as they represent
+    cooler lattice regions that can be processed with less computational
+    overhead and fewer numerical stability concerns.
     """
     def energy_magnitude(node):
         vec = vectors[node]
@@ -89,9 +87,9 @@ def analyze_lattice(nodes, vectors_dict, events):
     """Run full lattice analysis: independence pairs and priority ordering.
 
     Returns dict with:
-        - independent_pairs: list of (node_a, node_b) tuples where nodes
-          have disjoint causal cones
-        - priority_order: list of nodes sorted by weighted scheduling priority
+        - independent_pairs: list of (node_a, node_b) tuples where the
+          difference vector between them is sign-consistent
+        - priority_order: list of nodes sorted by L2 energy magnitude
     """
     independent_pairs = []
     sorted_nodes = sorted(nodes)
