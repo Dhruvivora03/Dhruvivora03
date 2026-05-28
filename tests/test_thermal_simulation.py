@@ -8,16 +8,29 @@ import json
 import os
 import sys
 import hashlib
+import base64
 
 sys.path.insert(0, "/app/runtime")
 
 STATE_FILE = "/app/runtime/thermal_state.jsonl"
 REPORT_FILE = "/app/runtime/thermal_summary.json"
-LOG_FILE = "/app/runtime/data/thermal_log.txt"
 
-# Precomputed verification constants derived from correct simulation
-_VERIFICATION_SEED = "lattice_thermal_v2"
-_EXPECTED_DIGEST = "2ebb5ffc5b5c4fd7"
+# Verification oracle: base64-encoded expected values from a verified
+# correct simulation run. Decode at runtime for comparison.
+_ORACLE_B64 = (
+    "eyJkaWdlc3QiOiAiMmViYjVmZmM1YjVjNGZkNyIsICJrbm93bGVkZ2VfdHJhbn"
+    "NmZXIiOiB7Im5vZGVfYmV0YSI6IHsiaW5kZXgiOiAwLCAibWluX3ZhbHVlIjog"
+    "OX19LCAibmVpZ2hib3JzX3Blcl9ub2RlIjogNiwgIm93bl9lbmVyZ2llcyI6IH"
+    "sibm9kZV9hbHBoYSI6IDE4LCAibm9kZV9iZXRhIjogMTQsICJub2RlX2RlbHRh"
+    "IjogOSwgIm5vZGVfZXBzaWxvbiI6IDEwLCAibm9kZV9ldGEiOiAxMSwgIm5vZG"
+    "VfZ2FtbWEiOiAxMSwgIm5vZGVfemV0YSI6IDl9LCAicGFpcl9jb3VudCI6IDIx"
+    "LCAicHJpb3JpdHlfbW9ub3RvbmljIjogdHJ1ZX0="
+)
+
+
+def _load_oracle():
+    """Decode the verification oracle data."""
+    return json.loads(base64.b64decode(_ORACLE_B64).decode())
 
 
 def load_state():
@@ -35,58 +48,6 @@ def load_report():
     """Load summary report from JSON file."""
     with open(REPORT_FILE, "r") as f:
         return json.load(f)
-
-
-def _count_events_for_node(node_id):
-    """Count events of each type for a given node from the trace log."""
-    counts = {"DIFFUSE": 0, "CONVECT": 0, "EQUILIBRATE": 0}
-    with open(LOG_FILE, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith(";"):
-                continue
-            parts = [p.strip() for p in line.split("->")]
-            if len(parts) == 4 and parts[1] == node_id:
-                etype = parts[2]
-                if etype in counts:
-                    counts[etype] += 1
-    return counts
-
-
-def _compute_expected_own_energy(node_id):
-    """Compute expected own-component energy by replaying events from trace.
-
-    Replays only own-component relevant events:
-    - DIFFUSE: own += 1
-    - CONVECT: own += 2
-    - EQUILIBRATE: own = max(own, peer_value_for_self) + 1
-    """
-    base = 3
-    own = base
-    with open(LOG_FILE, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith(";"):
-                continue
-            parts = [p.strip() for p in line.split("->")]
-            if len(parts) != 4 or parts[1] != node_id:
-                continue
-            etype = parts[2]
-            if etype == "DIFFUSE":
-                own += 1
-            elif etype == "CONVECT":
-                own += 2
-            elif etype == "EQUILIBRATE":
-                # Parse peer state to get reported value for self
-                state_str = parts[3].split("=", 1)[1]
-                peer_state = {}
-                for pair in state_str.split(";"):
-                    k, v = pair.split(":")
-                    peer_state[k.strip()] = int(v.strip())
-                if node_id in peer_state:
-                    own = max(own, peer_state[node_id])
-                own += 1
-    return own
 
 
 # ============================================================
@@ -150,61 +111,59 @@ class TestTier2EnergyState:
     """Energy vector correctness -- requires proper EQUILIBRATE handling."""
 
     def test_energy_after_equilibrate(self):
-        """Nodes' own energy must include EQUILIBRATE contribution.
+        """Nodes that processed EQUILIBRATE must have correct own energy.
 
-        Each EQUILIBRATE event should contribute 1 unit to the node's own
-        energy component, just like DIFFUSE. The own-component energy should
-        equal BASE + DIFFUSE_count + 2*CONVECT_count + EQUILIBRATE_count.
+        The own-component energy must match the verified oracle value,
+        which accounts for all event types including equilibration.
         """
+        oracle = _load_oracle()
         records = load_state()
+        all_ids = sorted(r["node_id"] for r in records)
+
+        # Check node_alpha specifically (has EQUILIBRATE)
         alpha = next(r for r in records if r["node_id"] == "node_alpha")
-        # node_alpha is index 0 in sorted node list
-        own_energy = alpha["energy_vector"][0]
-        expected = _compute_expected_own_energy("node_alpha")
-        assert own_energy == expected, (
-            f"node_alpha own energy expected {expected}, got {own_energy}. "
+        own_idx = all_ids.index("node_alpha")
+        expected = oracle["own_energies"]["node_alpha"]
+        actual = alpha["energy_vector"][own_idx]
+        assert actual == expected, (
+            f"node_alpha own energy expected {expected}, got {actual}. "
             f"EQUILIBRATE events must contribute to the node's own component."
         )
 
     def test_equilibrate_knowledge_transfer(self):
-        """Node beta must absorb thermal knowledge from its EQUILIBRATE peer.
+        """EQUILIBRATE must transfer thermal knowledge from the peer node.
 
-        The component-wise max operation should transfer higher values from
-        the peer's reported state into the local vector.
+        The component-wise max operation should absorb higher values from
+        the peer's reported state into the local energy vector.
         """
+        oracle = _load_oracle()
         records = load_state()
         beta = next(r for r in records if r["node_id"] == "node_beta")
-        # node_alpha is index 0 in sorted node list
-        # beta's EQUILIBRATE peer reports node_alpha:9, so beta[0] >= 9
-        alpha_component = beta["energy_vector"][0]
-        assert alpha_component >= 9, (
-            f"node_beta's alpha-component expected >= 9, got {alpha_component}. "
+        transfer = oracle["knowledge_transfer"]["node_beta"]
+        actual = beta["energy_vector"][transfer["index"]]
+        assert actual >= transfer["min_value"], (
+            f"node_beta component[{transfer['index']}] expected >= "
+            f"{transfer['min_value']}, got {actual}. "
             f"EQUILIBRATE must absorb peer's higher values via max."
         )
 
     def test_vector_sums_with_merges(self):
-        """Nodes with EQUILIBRATE must have sums reflecting both absorbed
-        knowledge AND the equilibration contribution to own component.
+        """All nodes with EQUILIBRATE must have correct own-component values.
 
-        For nodes with EQUILIBRATE, own_energy should match the formula:
-        BASE + DIFFUSE_count + 2*CONVECT_count + EQUILIBRATE_count.
-        The total sum will also include absorbed peer values.
+        Verifies that every node's own energy component matches the oracle,
+        confirming proper handling of equilibration contributions.
         """
+        oracle = _load_oracle()
         records = load_state()
-        # Verify multiple nodes with EQUILIBRATE have correct own component
-        for rec in records:
-            node_id = rec["node_id"]
-            counts = _count_events_for_node(node_id)
-            if counts["EQUILIBRATE"] > 0:
-                expected_own = _compute_expected_own_energy(node_id)
-                # Find own component index (sorted position of node_id)
-                all_ids = sorted(r["node_id"] for r in records)
-                own_idx = all_ids.index(node_id)
-                actual_own = rec["energy_vector"][own_idx]
-                assert actual_own == expected_own, (
-                    f"{node_id} own energy expected {expected_own}, got {actual_own}. "
-                    f"EQUILIBRATE must contribute to the node's own component."
-                )
+        all_ids = sorted(r["node_id"] for r in records)
+
+        for node_id, expected_own in oracle["own_energies"].items():
+            rec = next(r for r in records if r["node_id"] == node_id)
+            own_idx = all_ids.index(node_id)
+            actual = rec["energy_vector"][own_idx]
+            assert actual == expected_own, (
+                f"{node_id} own energy expected {expected_own}, got {actual}."
+            )
 
 
 # ============================================================
@@ -216,69 +175,54 @@ class TestTier3Independence:
     """Thermal independence classification -- requires correct predicate and priority."""
 
     def test_priority_ordering_by_sum(self):
-        """Priority must be ordered by total energy sum.
+        """Priority must be ordered by total energy sum (ascending).
 
-        The node with the lowest vector_sum should have priority_rank 0,
-        and the node with the highest vector_sum should have the highest rank.
+        The priority_order in the report should be monotonically
+        non-decreasing when mapped to vector_sum values.
         """
         records = load_state()
         report = load_report()
         priority = report["priority_order"]
 
-        # Get sums for first and last in priority
-        first_node = priority[0]
-        last_node = priority[-1]
-        first_rec = next(r for r in records if r["node_id"] == first_node)
-        last_rec = next(r for r in records if r["node_id"] == last_node)
-
-        assert first_rec["vector_sum"] <= last_rec["vector_sum"], (
-            f"Priority order wrong: first node {first_node} has sum "
-            f"{first_rec['vector_sum']}, last node {last_node} has sum "
-            f"{last_rec['vector_sum']}. First should have lowest sum."
-        )
-
-        # Verify full ordering is monotonically non-decreasing by sum
-        sums_in_priority_order = []
+        sums_in_order = []
         for node in priority:
             rec = next(r for r in records if r["node_id"] == node)
-            sums_in_priority_order.append(rec["vector_sum"])
+            sums_in_order.append(rec["vector_sum"])
 
-        for i in range(len(sums_in_priority_order) - 1):
-            assert sums_in_priority_order[i] <= sums_in_priority_order[i + 1], (
+        for i in range(len(sums_in_order) - 1):
+            assert sums_in_order[i] <= sums_in_order[i + 1], (
                 f"Priority not sorted by sum: position {i} has sum "
-                f"{sums_in_priority_order[i]}, position {i+1} has sum "
-                f"{sums_in_priority_order[i+1]}"
+                f"{sums_in_order[i]}, position {i+1} has sum "
+                f"{sums_in_order[i+1]}. Must use total energy sum."
             )
 
     def test_independent_pair_count(self):
-        """All node pairs should be thermally independent.
+        """All node pairs should be classified as thermally independent.
 
-        With correct energy vectors, no node's vector dominates another's
-        in the component-wise partial order. Therefore all C(7,2) = 21
-        pairs should be classified as independent.
+        With correct energy vectors, no vector dominates another in the
+        component-wise partial order, so all C(n,2) pairs are independent.
         """
+        oracle = _load_oracle()
         report = load_report()
-        # C(7,2) = 21 total possible pairs
-        max_pairs = 7 * 6 // 2
-        assert report["independent_pair_count"] == max_pairs, (
-            f"Expected {max_pairs} independent pairs, "
+        assert report["independent_pair_count"] == oracle["pair_count"], (
+            f"Expected {oracle['pair_count']} independent pairs, "
             f"got {report['independent_pair_count']}. "
             f"Independence requires mutual non-dominance in the partial order."
         )
 
     def test_independence_coverage(self):
-        """Every node must be independent from all 6 other nodes.
+        """Every node must be independent from all other nodes.
 
-        Since no energy vector dominates another in the correct output,
-        each node should list all other nodes as independent neighbors.
+        Each node should list all other nodes as independent neighbors.
         """
+        oracle = _load_oracle()
         records = load_state()
-        num_nodes = len(records)
+        expected_neighbors = oracle["neighbors_per_node"]
         for rec in records:
-            neighbor_count = len(rec["independent_neighbors"])
-            assert neighbor_count == num_nodes - 1, (
-                f"{rec['node_id']} has {neighbor_count} independent neighbors, "
-                f"expected {num_nodes - 1}."
+            actual = len(rec["independent_neighbors"])
+            assert actual == expected_neighbors, (
+                f"{rec['node_id']} has {actual} independent neighbors, "
+                f"expected {expected_neighbors}."
             )
 
 
@@ -292,11 +236,12 @@ class TestTier4Consistency:
 
     def test_digest(self):
         """State digest must match the verified correct value."""
+        oracle = _load_oracle()
         records = load_state()
         content = json.dumps(records, sort_keys=True)
         digest = hashlib.md5(content.encode()).hexdigest()[:16]
-        assert digest == _EXPECTED_DIGEST, (
-            f"Digest mismatch: got {digest}, expected {_EXPECTED_DIGEST}"
+        assert digest == oracle["digest"], (
+            f"Digest mismatch: got {digest}, expected {oracle['digest']}"
         )
 
     def test_cross_validation(self):
@@ -308,7 +253,6 @@ class TestTier4Consistency:
         total_independent = sum(
             len(r["independent_neighbors"]) for r in records
         )
-        # Each pair counted twice (once from each side)
         assert total_independent // 2 == report["independent_pair_count"], (
             f"Cross-validation failed: state has {total_independent // 2} pairs, "
             f"report claims {report['independent_pair_count']}"
