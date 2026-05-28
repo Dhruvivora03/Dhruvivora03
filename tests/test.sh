@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 mkdir -p /logs/verifier
-if [ ! -f /app/runtime/thermal_state.jsonl ]; then
-    python3 /app/runtime/run_simulation.py
+if [ ! -f /app/runtime/campaign_state.jsonl ]; then
+    python3 /app/runtime/run_campaign.py
 fi
 set +e
 uv run --with pytest pytest -v /tests/test_thermal_simulation.py

@@ -1,7 +1,7 @@
 """
-Tests for the lattice thermal diffusion simulation.
-Validates structural output, energy state correctness, thermal independence
-classification, and full simulation consistency.
+Tests for the warzone campaign state synchronization simulation.
+Validates structural output, influence state correctness, operational
+independence classification, and full simulation consistency.
 """
 
 import json
@@ -12,19 +12,19 @@ import base64
 
 sys.path.insert(0, "/app/runtime")
 
-STATE_FILE = "/app/runtime/thermal_state.jsonl"
-REPORT_FILE = "/app/runtime/thermal_summary.json"
+STATE_FILE = "/app/runtime/campaign_state.jsonl"
+REPORT_FILE = "/app/runtime/campaign_summary.json"
 
 # Verification oracle: base64-encoded expected values from a verified
 # correct simulation run. Decode at runtime for comparison.
 _ORACLE_B64 = (
-    "eyJkaWdlc3QiOiAiMmViYjVmZmM1YjVjNGZkNyIsICJrbm93bGVkZ2VfdHJhbn"
-    "NmZXIiOiB7Im5vZGVfYmV0YSI6IHsiaW5kZXgiOiAwLCAibWluX3ZhbHVlIjog"
-    "OX19LCAibmVpZ2hib3JzX3Blcl9ub2RlIjogNiwgIm93bl9lbmVyZ2llcyI6IH"
-    "sibm9kZV9hbHBoYSI6IDE4LCAibm9kZV9iZXRhIjogMTQsICJub2RlX2RlbHRh"
-    "IjogOSwgIm5vZGVfZXBzaWxvbiI6IDEwLCAibm9kZV9ldGEiOiAxMSwgIm5vZG"
-    "VfZ2FtbWEiOiAxMSwgIm5vZGVfemV0YSI6IDl9LCAicGFpcl9jb3VudCI6IDIx"
-    "LCAicHJpb3JpdHlfbW9ub3RvbmljIjogdHJ1ZX0="
+    "eyJkaWdlc3QiOiAiOGE0N2RhYzc3OWFhYjQ0NiIsICJrbm93bGVkZ2VfdHJh"
+    "bnNmZXIiOiB7InpvbmVfZG9ja3MiOiB7ImluZGV4IjogMCwgIm1pbl92YWx1"
+    "ZSI6IDl9fSwgIm5laWdoYm9yc19wZXJfem9uZSI6IDYsICJvd25faW5mbHVl"
+    "bmNlcyI6IHsiem9uZV9jaXRhZGVsIjogMTgsICJ6b25lX2RvY2tzIjogMTQs"
+    "ICJ6b25lX2ZvcmdlIjogMTEsICJ6b25lX2dyb3ZlIjogOSwgInpvbmVfa2Vl"
+    "cCI6IDEwLCAiem9uZV9ydWlucyI6IDksICJ6b25lX3NwaXJlIjogMTF9LCAi"
+    "cGFpcl9jb3VudCI6IDIxLCAicHJpb3JpdHlfbW9ub3RvbmljIjogdHJ1ZX0="
 )
 
 
@@ -60,122 +60,122 @@ class TestTier1Structural:
 
     def test_output_files_exist(self):
         """Both output files must exist after simulation."""
-        assert os.path.isfile(STATE_FILE), "thermal_state.jsonl missing"
-        assert os.path.isfile(REPORT_FILE), "thermal_summary.json missing"
+        assert os.path.isfile(STATE_FILE), "campaign_state.jsonl missing"
+        assert os.path.isfile(REPORT_FILE), "campaign_summary.json missing"
 
-    def test_node_count(self):
-        """Simulation must produce records for exactly 7 lattice nodes."""
+    def test_zone_count(self):
+        """Simulation must produce records for exactly 7 zones."""
         records = load_state()
         assert len(records) == 7
 
-    def test_node_ids(self):
-        """All expected node IDs must be present."""
+    def test_zone_ids(self):
+        """All expected zone IDs must be present."""
         records = load_state()
-        node_ids = {r["node_id"] for r in records}
+        zone_ids = {r["zone_id"] for r in records}
         expected = {
-            "node_alpha", "node_beta", "node_gamma", "node_delta",
-            "node_epsilon", "node_zeta", "node_eta"
+            "zone_citadel", "zone_docks", "zone_forge", "zone_grove",
+            "zone_keep", "zone_ruins", "zone_spire"
         }
-        assert node_ids == expected
+        assert zone_ids == expected
 
-    def test_events_per_node(self):
-        """Each record must have a 7-element energy vector."""
+    def test_vector_dimensions(self):
+        """Each record must have a 7-element influence vector."""
         records = load_state()
         for rec in records:
-            assert len(rec["energy_vector"]) == 7, (
-                f"{rec['node_id']} has {len(rec['energy_vector'])}-element vector"
+            assert len(rec["influence_vector"]) == 7, (
+                f"{rec['zone_id']} has {len(rec['influence_vector'])}-element vector"
             )
 
     def test_required_fields(self):
         """Each state record must contain all required fields."""
         records = load_state()
-        required = {"node_id", "energy_vector", "vector_sum",
-                    "independent_neighbors", "priority_rank"}
+        required = {"zone_id", "influence_vector", "vector_sum",
+                    "independent_zones", "priority_rank"}
         for rec in records:
             assert required.issubset(rec.keys()), (
-                f"{rec['node_id']} missing fields: {required - set(rec.keys())}"
+                f"{rec['zone_id']} missing fields: {required - set(rec.keys())}"
             )
 
-    def test_total_event_count(self):
-        """Report must contain correct total node count."""
+    def test_total_zone_count_in_report(self):
+        """Report must contain correct total zone count."""
         report = load_report()
-        assert report["total_nodes"] == 7
+        assert report["total_zones"] == 7
 
 
 # ============================================================
-# TIER 2: Energy state tests (need Bug 1 fixed)
+# TIER 2: Influence state tests (need Bug 1 fixed)
 # ============================================================
 
 
-class TestTier2EnergyState:
-    """Energy vector correctness -- requires proper EQUILIBRATE handling."""
+class TestTier2InfluenceState:
+    """Influence vector correctness -- requires proper RALLY handling."""
 
-    def test_energy_after_equilibrate(self):
-        """Nodes that processed EQUILIBRATE must have correct own energy.
+    def test_influence_after_rally(self):
+        """Zones that processed RALLY must have correct own influence.
 
-        The own-component energy must match the verified oracle value,
-        which accounts for all event types including equilibration.
+        The own-component influence must match the verified oracle value,
+        which accounts for all event types including rally coordination.
         """
         oracle = _load_oracle()
         records = load_state()
-        all_ids = sorted(r["node_id"] for r in records)
+        all_ids = sorted(r["zone_id"] for r in records)
 
-        # Check node_beta specifically (has EQUILIBRATE)
-        beta = next(r for r in records if r["node_id"] == "node_beta")
-        own_idx = all_ids.index("node_beta")
-        expected = oracle["own_energies"]["node_beta"]
-        actual = beta["energy_vector"][own_idx]
+        # Check zone_docks specifically (has RALLY, affected by bug)
+        docks = next(r for r in records if r["zone_id"] == "zone_docks")
+        own_idx = all_ids.index("zone_docks")
+        expected = oracle["own_influences"]["zone_docks"]
+        actual = docks["influence_vector"][own_idx]
         assert actual == expected, (
-            f"node_beta own energy expected {expected}, got {actual}. "
-            f"EQUILIBRATE events must always contribute to the node's own component."
+            f"zone_docks own influence expected {expected}, got {actual}. "
+            f"RALLY events must always contribute to the zone's own component."
         )
 
-    def test_equilibrate_knowledge_transfer(self):
-        """EQUILIBRATE must transfer thermal knowledge from the peer node.
+    def test_rally_knowledge_transfer(self):
+        """RALLY must transfer influence knowledge from allied zones.
 
         The component-wise max operation should absorb higher values from
-        the peer's reported state into the local energy vector.
+        the ally's reported state into the local influence vector.
         """
         oracle = _load_oracle()
         records = load_state()
-        beta = next(r for r in records if r["node_id"] == "node_beta")
-        transfer = oracle["knowledge_transfer"]["node_beta"]
-        actual = beta["energy_vector"][transfer["index"]]
+        docks = next(r for r in records if r["zone_id"] == "zone_docks")
+        transfer = oracle["knowledge_transfer"]["zone_docks"]
+        actual = docks["influence_vector"][transfer["index"]]
         assert actual >= transfer["min_value"], (
-            f"node_beta component[{transfer['index']}] expected >= "
+            f"zone_docks component[{transfer['index']}] expected >= "
             f"{transfer['min_value']}, got {actual}. "
-            f"EQUILIBRATE must absorb peer's higher values via max."
+            f"RALLY must absorb ally's higher values via max."
         )
 
-    def test_vector_sums_with_merges(self):
-        """All nodes with EQUILIBRATE must have correct own-component values.
+    def test_influence_all_rally_zones(self):
+        """All zones with RALLY must have correct own-component values.
 
-        Verifies that every node's own energy component matches the oracle,
-        confirming proper handling of equilibration contributions.
+        Verifies that every zone's own influence matches the oracle,
+        confirming proper handling of rally contributions.
         """
         oracle = _load_oracle()
         records = load_state()
-        all_ids = sorted(r["node_id"] for r in records)
+        all_ids = sorted(r["zone_id"] for r in records)
 
-        for node_id, expected_own in oracle["own_energies"].items():
-            rec = next(r for r in records if r["node_id"] == node_id)
-            own_idx = all_ids.index(node_id)
-            actual = rec["energy_vector"][own_idx]
+        for zone_id, expected_own in oracle["own_influences"].items():
+            rec = next(r for r in records if r["zone_id"] == zone_id)
+            own_idx = all_ids.index(zone_id)
+            actual = rec["influence_vector"][own_idx]
             assert actual == expected_own, (
-                f"{node_id} own energy expected {expected_own}, got {actual}."
+                f"{zone_id} own influence expected {expected_own}, got {actual}."
             )
 
 
 # ============================================================
-# TIER 3: Thermal independence tests (need Bugs 2+3 fixed)
+# TIER 3: Independence tests (need Bugs 2+3 fixed)
 # ============================================================
 
 
 class TestTier3Independence:
-    """Thermal independence classification -- requires correct predicate and priority."""
+    """Operational independence classification -- requires correct predicate and priority."""
 
     def test_priority_ordering_by_sum(self):
-        """Priority must be ordered by total energy sum (ascending).
+        """Priority must be ordered by total influence sum (ascending).
 
         The priority_order in the report should be monotonically
         non-decreasing when mapped to vector_sum values.
@@ -185,21 +185,21 @@ class TestTier3Independence:
         priority = report["priority_order"]
 
         sums_in_order = []
-        for node in priority:
-            rec = next(r for r in records if r["node_id"] == node)
+        for zone in priority:
+            rec = next(r for r in records if r["zone_id"] == zone)
             sums_in_order.append(rec["vector_sum"])
 
         for i in range(len(sums_in_order) - 1):
             assert sums_in_order[i] <= sums_in_order[i + 1], (
                 f"Priority not sorted by sum: position {i} has sum "
                 f"{sums_in_order[i]}, position {i+1} has sum "
-                f"{sums_in_order[i+1]}. Must use total energy sum."
+                f"{sums_in_order[i+1]}. Must use total influence sum."
             )
 
     def test_independent_pair_count(self):
-        """All node pairs should be classified as thermally independent.
+        """All zone pairs should be classified as operationally independent.
 
-        With correct energy vectors, no vector dominates another in the
+        With correct influence vectors, no vector dominates another in the
         component-wise partial order, so all C(n,2) pairs are independent.
         """
         oracle = _load_oracle()
@@ -211,17 +211,17 @@ class TestTier3Independence:
         )
 
     def test_independence_coverage(self):
-        """Every node must be independent from all other nodes.
+        """Every zone must be independent from all other zones.
 
-        Each node should list all other nodes as independent neighbors.
+        Each zone should list all other zones as independent neighbors.
         """
         oracle = _load_oracle()
         records = load_state()
-        expected_neighbors = oracle["neighbors_per_node"]
+        expected_neighbors = oracle["neighbors_per_zone"]
         for rec in records:
-            actual = len(rec["independent_neighbors"])
+            actual = len(rec["independent_zones"])
             assert actual == expected_neighbors, (
-                f"{rec['node_id']} has {actual} independent neighbors, "
+                f"{rec['zone_id']} has {actual} independent zones, "
                 f"expected {expected_neighbors}."
             )
 
@@ -251,7 +251,7 @@ class TestTier4Consistency:
 
         # Verify pair count matches state records
         total_independent = sum(
-            len(r["independent_neighbors"]) for r in records
+            len(r["independent_zones"]) for r in records
         )
         assert total_independent // 2 == report["independent_pair_count"], (
             f"Cross-validation failed: state has {total_independent // 2} pairs, "
@@ -261,6 +261,6 @@ class TestTier4Consistency:
         # Verify priority order length
         assert len(report["priority_order"]) == 7
 
-        # Verify total energy
+        # Verify total influence
         state_total = sum(r["vector_sum"] for r in records)
-        assert report["total_energy"] == state_total
+        assert report["total_influence"] == state_total

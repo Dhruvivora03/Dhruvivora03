@@ -1,33 +1,33 @@
 author_name = "Dhruvkumar Patel"
 author_email = "dhruvpatel2284@gmail.com"
-category = "Scientific Computing & Numerics"
+category = "Games"
 difficulty = "hard"
-tags = ["lattice-methods", "thermal-simulation", "vector-clocks", "partial-orders", "numerical-computing"]
-difficulty_explanation = "Requires understanding that EQUILIBRATE_MODE='observe' is incorrect (should be 'participate'), that causal-cone disjointness is a flawed independence criterion (correct: partial-order incomparability via non-dominance), and that L2 norm is wrong for priority (correct: linear sum). The code uses proper OOP patterns with strategy functions, making bugs appear as deliberate architectural choices rather than errors."
-solution_explanation = "Three fixes: (1) Change EQUILIBRATE_MODE from 'observe' to 'participate' to enable self-increment in _resolve_propagation, (2) Replace causal-cone disjointness independence check with vector non-dominance (incomparability), (3) Replace L2 norm (Euclidean magnitude) priority with simple sum. The report file cascades fix from the analyzer."
-verification_explanation = "14 tests in 4 tiers: 6 structural (always pass), 3 energy state (need fix 1), 3 independence classification (need fixes 2+3), 2 full consistency (need all fixes). NOP yields 8 pass / 6 fail, oracle yields 14 pass / 0 fail."
+tags = ["multiplayer", "state-replication", "vector-clocks", "partial-orders", "game-simulation"]
+difficulty_explanation = "Requires understanding that the conditional rally increment is incorrect (should always increment), that sign-consistency of the difference vector checks comparability (the OPPOSITE of independence), and that L2 norm is wrong for priority (correct: linear sum). The code uses proper OOP patterns with tracking statistics and helper functions, making bugs appear as deliberate architectural choices."
+solution_explanation = "Three fixes: (1) Remove the conditional check in apply_rally so own component always increments after the max loop, (2) Replace sign-consistency independence check with mixed-sign check (incomparability), (3) Replace L2 norm priority with simple sum. The report file cascades fix from the analyzer."
+verification_explanation = "14 tests in 4 tiers: 6 structural (always pass), 3 influence state (need fix 1), 3 independence classification (need fixes 2+3), 2 full consistency (need all fixes). NOP yields 8 pass / 6 fail, oracle yields 14 pass / 0 fail."
 expert_time_estimate_hours = 2.5
 
 [task]
-name = "lattice-thermal-repair"
-description = "Debug a lattice-based thermal diffusion simulation that incorrectly computes energy propagation vectors, misclassifies thermal independence between nodes, and produces wrong scheduling priorities."
+name = "warzone-sync-repair"
+description = "Debug a multiplayer warzone campaign simulation that incorrectly computes influence propagation vectors, misclassifies operational independence between zones, and produces wrong deployment priorities."
 
 [task.difficulty]
 level = "hard"
-reasoning = "The bugs exploit layered abstractions: a configuration flag (observe vs participate) controls increment behavior through a helper function, a mathematically plausible but wrong independence criterion (causal-cone disjointness vs partial-order incomparability) is buried behind helper functions, and the Euclidean norm sounds mathematically sophisticated but gives wrong priority ordering. All bugs are defended by authoritative comments explaining why the wrong approach is correct."
+reasoning = "The bugs exploit layered abstractions: a conditional increment that only fires when the ally reports higher values (the increment IS present but conditionally disabled), a mathematically plausible but inverted independence criterion (sign-consistency of difference = comparable, not independent), and Euclidean magnitude priority that sounds sophisticated but gives wrong ordering. All bugs are defended by authoritative docstrings."
 
 [task.runtime]
-entrypoint = "python3 /app/runtime/run_simulation.py"
+entrypoint = "python3 /app/runtime/run_campaign.py"
 language = "python"
 dependencies = "stdlib-only"
 
 [task.validator]
 command = "bash tests/test.sh"
-description = "Runs 14 pytest tests across 4 tiers validating structural output, energy correctness, independence classification, and digest consistency."
+description = "Runs 14 pytest tests across 4 tiers validating structural output, influence correctness, independence classification, and digest consistency."
 
 [task.repair]
 command = "bash solution/solve.sh"
-description = "Applies fixes to diffusion_engine.py and lattice_analyzer.py, then re-runs the simulation."
+description = "Applies fixes to influence_tracker.py and conflict_resolver.py, then re-runs the simulation."
 
 [task.resources]
 timeout = 300

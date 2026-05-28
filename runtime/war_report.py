@@ -1,41 +1,41 @@
 """
-Thermal simulation report writer.
+War campaign report writer.
 Generates the final JSONL state file and summary report combining
-engine state with lattice analysis results.
+zone influence state with conflict analysis results.
 """
 
 import json
 import hashlib
 import os
 
-from lattice_analyzer import nodes_are_thermally_independent
+from conflict_resolver import zones_are_operationally_independent
 
 OUTPUT_DIR = os.path.dirname(__file__)
-STATE_FILE = os.path.join(OUTPUT_DIR, "thermal_state.jsonl")
-REPORT_FILE = os.path.join(OUTPUT_DIR, "thermal_summary.json")
+STATE_FILE = os.path.join(OUTPUT_DIR, "campaign_state.jsonl")
+REPORT_FILE = os.path.join(OUTPUT_DIR, "campaign_summary.json")
 
 
-def write_state_file(nodes, vectors_dict, events, analysis):
-    """Write per-node state records to JSONL file."""
+def write_state_file(zones, vectors_dict, events, analysis):
+    """Write per-zone state records to JSONL file."""
     records = []
-    sorted_nodes = sorted(nodes)
+    sorted_zones = sorted(zones)
 
-    for node in sorted_nodes:
-        vec = vectors_dict[node]
-        # Determine which other nodes this node is thermally independent from
+    for zone in sorted_zones:
+        vec = vectors_dict[zone]
+        # Determine which other zones this zone is operationally independent from
         independent_with = []
-        for other in sorted_nodes:
-            if other == node:
+        for other in sorted_zones:
+            if other == zone:
                 continue
-            if nodes_are_thermally_independent(vec, vectors_dict[other]):
+            if zones_are_operationally_independent(vec, vectors_dict[other]):
                 independent_with.append(other)
 
         record = {
-            "node_id": node,
-            "energy_vector": vec,
+            "zone_id": zone,
+            "influence_vector": vec,
             "vector_sum": sum(vec),
-            "independent_neighbors": independent_with,
-            "priority_rank": analysis["priority_order"].index(node),
+            "independent_zones": independent_with,
+            "priority_rank": analysis["priority_order"].index(zone),
         }
         records.append(record)
 
@@ -58,11 +58,11 @@ def write_summary_report(records, analysis):
 
     summary = {
         "digest": digest,
-        "total_nodes": len(records),
+        "total_zones": len(records),
         "independent_pair_count": len(analysis["independent_pairs"]),
         "independent_pairs": [list(p) for p in analysis["independent_pairs"]],
         "priority_order": analysis["priority_order"],
-        "total_energy": sum(r["vector_sum"] for r in records),
+        "total_influence": sum(r["vector_sum"] for r in records),
     }
 
     with open(REPORT_FILE, "w") as f:
