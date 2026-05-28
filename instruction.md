@@ -1,62 +1,62 @@
-# Particle Field Energy Dissipation — Debugging Task
+# Threat Intelligence Correlation — Debugging Task
 
 ## Overview
 
-A molecular dynamics simulation models 7 coupled particles in a conservative force field. Each particle accumulates energy through physical events (DRIFT, COLLIDE) and exchanges energy knowledge through COUPLE interactions with neighbors.
+A network security correlation engine monitors 7 network segments for intrusion activity. Each segment accumulates threat levels through adversarial events (PROBE, BREACH) and exchanges threat intelligence through CORRELATE interactions with adjacent segments.
 
-The simulation pipeline reads a trace log, processes events through the dissipation engine, analyzes the resulting energy field for decoupled particle pairs, and produces a stability report for safe shutdown sequencing.
+The correlation pipeline reads an intrusion event log, processes events through the threat accumulator, analyzes the resulting threat landscape for isolated segment pairs, and produces a threat assessment report for incident response triage.
 
 ## Observed Problem
 
-The simulation runs without errors but produces incorrect results:
+The correlation runs without errors but produces incorrect results:
 
-- The stability report shows **0 decoupled pairs** when the field analysis expects **19**
-- The shutdown ordering appears to follow temporal event sequence rather than thermodynamic priority
-- Alpha's own energy component reports **13** but integration of its event history (5 DRIFT + 2 COLLIDE + 2 COUPLE) suggests it should be **14**
-- The report digest is `7c9b01d76666971e` instead of the expected `39e8b5fd76520962`
+- The threat assessment shows **0 isolated pairs** when correlation analysis expects **18**
+- The triage ordering appears to follow temporal event sequence rather than threat severity priority
+- DMZ's own threat component reports **13** but integration of its event history (4 PROBE + 2 BREACH + 2 CORRELATE) suggests it should be **14**
+- The report digest is `b9436d2782dc0abd` instead of the expected `9f83c0f249d4334c`
 
 ## File Layout
 
 ```
 /app/runtime/
 ├── data/
-│   └── particle_field.log    # Event trace (correct, do not modify)
-├── trace_parser.py           # Log parser (correct, do not modify)
-├── dissipation_engine.py     # Energy vector engine (contains bug)
-├── field_analyzer.py         # Convergence analysis (contains bugs)
-├── stability_report.py       # Report generation (affected by analyzer bugs)
-└── simulate_field.py         # Orchestrator (correct, do not modify)
+│   └── intrusion_events.log   # Event trace (correct, do not modify)
+├── intel_parser.py            # Log parser (correct, do not modify)
+├── threat_accumulator.py      # Threat vector engine (contains bug)
+├── correlation_analyzer.py    # Correlation analysis (contains bugs)
+├── threat_report.py           # Report generation (affected by analyzer bugs)
+└── run_correlation.py         # Orchestrator (correct, do not modify)
 ```
 
 ## Correct Files (do not modify)
 
-- `/app/runtime/data/particle_field.log` — the raw event trace
-- `/app/runtime/trace_parser.py` — parses the arrow-separated log format
-- `/app/runtime/simulate_field.py` — orchestrates parsing, engine, and report generation
+- `/app/runtime/data/intrusion_events.log` — the raw event trace
+- `/app/runtime/intel_parser.py` — parses the pipe-separated log format
+- `/app/runtime/run_correlation.py` — orchestrates parsing, accumulation, and reporting
 
 ## Files With Bugs
 
-- `/app/runtime/dissipation_engine.py` — energy vector computation
-- `/app/runtime/field_analyzer.py` — field decoupling analysis and shutdown ordering
-- `/app/runtime/stability_report.py` — report generation (imports from field_analyzer)
+- `/app/runtime/threat_accumulator.py` — threat vector computation
+- `/app/runtime/correlation_analyzer.py` — isolation analysis and triage ordering
+- `/app/runtime/threat_report.py` — report generation (imports from correlation_analyzer)
 
 ## Output Schema
 
-### field_state.jsonl
+### segment_state.jsonl
 ```json
-{"particle_id": "alpha", "energy_vector": [14, ...], "vector_sum": 72}
+{"segment_id": "dmz", "threat_vector": [10, 10, 14, 10, 9, 9, 10], "vector_sum": 72}
 ```
 
-### stability_report.jsonl
+### threat_assessment.jsonl
 ```json
-{"type": "particle_state", "particle_id": "alpha", "energy_vector": [...], "vector_sum": 72}
-{"type": "field_analysis", "decoupled_pairs": [...], "decoupled_count": 19, "shutdown_order": [...]}
-{"type": "digest", "fingerprint": "39e8b5fd76520962"}
+{"type": "segment_state", "segment_id": "dmz", "threat_vector": [...], "vector_sum": 72}
+{"type": "correlation_analysis", "isolated_pairs": [...], "isolated_count": 18, "triage_order": [...]}
+{"type": "digest", "fingerprint": "9f83c0f249d4334c"}
 ```
 
 ## Expected Correct Values
 
-- Alpha own energy component: **14**
-- Total decoupled pairs: **19** (out of 21 possible)
-- Shutdown order first: **epsilon** (lowest energy), last: **alpha** (highest energy)
-- Report digest: `39e8b5fd76520962`
+- DMZ own threat component: **14**
+- Total isolated pairs: **18** (out of 21 possible)
+- Triage order last: **dmz** (highest threat sum)
+- Report digest: `9f83c0f249d4334c`

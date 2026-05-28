@@ -1,33 +1,33 @@
 author_name = "Dhruvkumar Patel"
 author_email = "dhruvpatel2284@gmail.com"
-category = "Scientific Computing & Numerics"
+category = "Cybersecurity"
 difficulty = "hard"
-tags = ["molecular-dynamics", "vector-clocks", "partial-orders", "energy-simulation", "numerical-computing"]
-difficulty_explanation = "Requires understanding of vector-based energy tracking, partial order theory (incomparability vs equality), and the distinction between passive knowledge transfer and active energy dissipation. Three interdependent bugs across two files with misleading comments defending the buggy behavior."
-solution_explanation = "Fix 1: Add self._energy[self.particle_id] += 1 after the COUPLE merge loop in dissipation_engine.py. Fix 2: Replace equality check (bidirectional leq) with incomparability check (neither dominates) in field_analyzer.py. Fix 3: Replace temporal recency sort with vector-sum sort in compute_shutdown_priority."
+tags = ["threat-intelligence", "network-security", "intrusion-detection", "vector-correlation", "incident-response"]
+difficulty_explanation = "Requires understanding of vector-based threat tracking, partial order theory (incomparability vs equality in threat dominance), and the distinction between passive intelligence sharing and active adversarial exposure. Three interdependent bugs across two files with misleading comments defending the buggy behavior."
+solution_explanation = "Fix 1: Add self._threat[self.segment_id] += 1 after the CORRELATE merge loop in threat_accumulator.py. Fix 2: Replace equality check (bidirectional leq) with incomparability check (neither dominates) in correlation_analyzer.py. Fix 3: Replace temporal recency sort with vector-sum sort in compute_triage_priority."
 verification_explanation = "14 tests in 4 tiers: 6 structural (always pass), 3 state-value (need Fix 1), 3 pair-classification (need Fixes 2+3), 2 full-consistency (need all fixes). NOP gives 8 pass / 6 fail, Oracle gives 14 pass / 0 fail."
 expert_time_estimate_hours = 2.5
 
 [task]
-name = "particle-energy-repair"
-description = "Debug a molecular dynamics energy dissipation simulation where particles track energy vectors through DRIFT, COLLIDE, and COUPLE events. The dissipation engine, field analyzer, and report writer contain subtle bugs in vector increment logic, decoupling predicate, and priority ordering."
+name = "threat-intel-repair"
+description = "Debug a network security threat correlation engine where segments track threat vectors through PROBE, BREACH, and CORRELATE events. The threat accumulator, correlation analyzer, and report writer contain subtle bugs in vector increment logic, isolation predicate, and triage ordering."
 
 [task.difficulty]
 level = "hard"
-reasoning = "Three bugs span two files with cascading effects. Bug 2 (equality vs incomparability) requires deep understanding of partial order semantics. Misleading comments actively defend incorrect behavior as sound engineering decisions."
+reasoning = "Three bugs span two files with cascading effects. Bug 2 (equality vs incomparability) requires deep understanding of partial order semantics applied to threat dominance. Misleading comments actively defend incorrect behavior as sound security engineering decisions."
 
 [task.runtime]
-entrypoint = "python3 /app/runtime/simulate_field.py"
+entrypoint = "python3 /app/runtime/run_correlation.py"
 language = "python"
 dependencies = "stdlib-only"
 
 [task.validator]
 command = "bash tests/test.sh"
-description = "Runs 14 pytest tests across 4 difficulty tiers validating energy computation, pair classification, shutdown ordering, and digest integrity."
+description = "Runs 14 pytest tests across 4 difficulty tiers validating threat computation, pair classification, triage ordering, and digest integrity."
 
 [task.repair]
 command = "bash solution/solve.sh"
-description = "Applies fixes to dissipation_engine.py and field_analyzer.py, then regenerates simulation outputs."
+description = "Applies fixes to threat_accumulator.py and correlation_analyzer.py, then regenerates correlation outputs."
 
 [task.resources]
 timeout = 300
