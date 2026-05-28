@@ -1,3 +1,4 @@
 #!/bin/bash
-cd /app
-python3 /solution/repair_spatial_index.py
+set -e
+python3 /app/runtime/simulate_field.py
+python3 /solution/repair_particle_field.py
