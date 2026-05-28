@@ -1,66 +1,66 @@
-# Warzone Campaign State Synchronization -- Debugging Task
+# Network Intrusion Detection Pipeline -- Debugging Task
 
 ## Overview
 
-A multiplayer warzone campaign simulation processes force deployment events across 7 contested zones. The simulation reads a battle trace log of events (PATROL, ASSAULT, RALLY), computes per-zone influence vectors, classifies operational independence between zone pairs, and generates a deployment priority for parallel force scheduling.
+A network intrusion detection system monitors threat propagation across 7 network segments. The pipeline reads a threat event stream (SCAN, EXPLOIT, LATERAL), builds per-segment threat vectors, classifies which segment pairs can be safely isolated for independent incident response, and computes a triage priority for resource allocation.
 
-The system is producing incorrect results in multiple areas: influence accumulation, independence classification, and deployment priority ordering.
+The system is producing incorrect results in multiple areas: threat level accumulation, isolation classification, and triage ordering.
 
 ## Expected Behavior
 
-- Each zone maintains a 7-element influence vector tracking accumulated operational strength
-- PATROL events add 1 to the zone's own component
-- ASSAULT events add 2 to the zone's own component
-- RALLY events synchronize influence knowledge with an ally via component-wise maximum AND should record the rally as an active operation
-- Operational independence between zones should be determined by the correct mathematical criterion for the influence vector partial order
-- Deployment priority should reflect total accumulated influence
+- Each segment maintains a 7-element threat vector tracking observed threat levels
+- SCAN events increment the segment's own threat by 1
+- EXPLOIT events increment the segment's own threat by 2
+- LATERAL events absorb threat intelligence from adjacent segments (component-wise max) and should always record the propagation as an active event
+- Isolation classification should identify all safe isolation pairs
+- Triage priority should reflect total accumulated threat
 
 ## Observed Symptoms
 
-- Zones that have processed RALLY events show influence values that are consistently 1 unit lower than expected in their own component
-- The number of independent pairs detected is lower than the true count
-- The deployment priority order does not match what total influence sums would produce -- specifically, zones with high peak values in single dimensions are being ranked above zones with higher total influence
-- The final state digest does not match the verified correct value
+- Segments that processed LATERAL events show threat values consistently 1 unit lower than expected in their own position
+- The number of isolation pairs detected is lower than the true count
+- The triage priority order does not match what total threat sums would produce
+- The final state fingerprint does not match the verified correct value
 
 ## File Locations
 
 All source files are at `/app/runtime/`:
 
-- `/app/runtime/data/battle_log.txt` -- input trace (CORRECT)
-- `/app/runtime/log_reader.py` -- log parser (CORRECT)
-- `/app/runtime/run_campaign.py` -- orchestrator (CORRECT)
-- `/app/runtime/influence_tracker.py` -- influence vector engine (HAS BUGS)
-- `/app/runtime/conflict_resolver.py` -- independence analysis (HAS BUGS)
-- `/app/runtime/war_report.py` -- report generation (HAS BUGS -- cascading from analyzer)
+- `/app/runtime/data/threat_events.tsv` -- input event stream (CORRECT)
+- `/app/runtime/event_parser.py` -- event parser (CORRECT)
+- `/app/runtime/run_detection.py` -- pipeline orchestrator (CORRECT)
+- `/app/runtime/propagation_model.py` -- threat propagation engine (HAS BUGS)
+- `/app/runtime/segment_classifier.py` -- isolation classification (HAS BUGS)
+- `/app/runtime/detection_report.py` -- report generation (HAS BUGS -- cascading from classifier)
 
 ## Output Schema
 
-### campaign_state.jsonl (one JSON object per line, sorted by zone_id)
+### detection_findings.jsonl (one JSON object per line, sorted by segment_id)
 ```json
 {
-  "zone_id": "<zone_name>",
-  "influence_vector": [<7 integers>],
-  "vector_sum": <integer>,
-  "independent_zones": [<list of zone_ids>],
-  "priority_rank": <integer 0-6>
+  "segment_id": "<segment_name>",
+  "threat_vector": [<7 integers>],
+  "threat_total": <integer>,
+  "isolatable_from": [<list of segment_ids>],
+  "triage_rank": <integer 0-6>
 }
 ```
 
-### campaign_summary.json
+### detection_summary.json
 ```json
 {
-  "digest": "<16-char hex>",
-  "total_zones": 7,
-  "independent_pair_count": <integer>,
-  "independent_pairs": [[<zone_a>, <zone_b>], ...],
-  "priority_order": [<zones sorted by priority>],
-  "total_influence": <integer>
+  "fingerprint": "<16-char hex>",
+  "segment_count": 7,
+  "isolation_pair_count": <integer>,
+  "isolation_pairs": [[<seg_a>, <seg_b>], ...],
+  "triage_order": [<segments sorted by priority>],
+  "aggregate_threat": <integer>
 }
 ```
 
 ## Constraints
 
 - Only standard library modules are used
-- Do not modify `log_reader.py`, `run_campaign.py`, or the input data
-- The simulation must produce both output files with correct values
+- Do not modify `event_parser.py`, `run_detection.py`, or the input data
+- The pipeline must produce both output files with correct values
 - All 14 tests must pass after repair

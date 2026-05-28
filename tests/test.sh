@@ -1,11 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 mkdir -p /logs/verifier
-if [ ! -f /app/runtime/campaign_state.jsonl ]; then
-    python3 /app/runtime/run_campaign.py
+if [ ! -f /app/runtime/detection_findings.jsonl ]; then
+    python3 /app/runtime/run_detection.py
 fi
 set +e
-uv run --with pytest pytest -v /tests/test_thermal_simulation.py
+uv run --with pytest pytest -v /tests/test_threat_detection.py
 TEST_EXIT=$?
 set -e
 if [ "$TEST_EXIT" -eq 0 ]; then echo 1 > /logs/verifier/reward.txt; else echo 0 > /logs/verifier/reward.txt; fi

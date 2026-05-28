@@ -1,4 +1,4 @@
 #!/bin/bash
 set -e
-python3 /app/runtime/run_campaign.py
-python3 /solution/repair_warzone_sync.py
+python3 /app/runtime/run_detection.py
+python3 /solution/repair_threat_detection.py
