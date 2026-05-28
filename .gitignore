@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
-environment/runtime/output/
+.pytest_cache/
+thermal_state.jsonl
+thermal_summary.json

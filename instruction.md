@@ -1,106 +1,67 @@
-# Spatial Index Repair — Debugging Task
+# Lattice Thermal Diffusion Simulation — Debugging Task
 
 ## Overview
 
-A geospatial indexing engine ingests point location data from multiple feed sources, constructs an R-tree spatial index, and executes range and k-nearest-neighbor (KNN) queries against the indexed data. The system processes feeds in configurable batches and produces JSON output containing query results and index structure statistics.
+A lattice-based thermal diffusion simulation processes energy propagation events across 7 lattice nodes. The simulation reads a trace log of thermal events (DIFFUSE, CONVECT, EQUILIBRATE), computes per-node energy vectors, classifies thermal independence between node pairs, and generates a scheduling priority for parallel simulation dispatch.
 
-## System Environment
+The system is producing incorrect results. Some energy values are wrong, thermal independence is never detected between any pair of nodes, and the scheduling priority appears to follow event timing rather than energy state.
 
-- **Language**: Python 3.11
-- **Runtime**: `/app/runtime/` (source, config, data, output)
-- **Global system-wide tooling**: `uv` and `pytest` are available
+## Expected Behavior
 
-## Processing Stages
+- Each node maintains a 7-element energy vector tracking accumulated energy from all nodes' perspectives
+- DIFFUSE events add 1 to the node's own component
+- CONVECT events add 2 to the node's own component
+- EQUILIBRATE events synchronize knowledge with a neighbor (component-wise max)
+- Thermal independence between nodes should be detected when appropriate
+- Scheduling priority should reflect logical energy state
 
-1. **Feed Loading** — Reads CSV feed files (sensor, landmark, zone) based on the active feeds configuration. Each feed provides geospatial point records with coordinates, labels, timestamps, and per-feed insertion order.
+## Observed Symptoms
 
-2. **Index Construction** — Builds an R-tree spatial index from the loaded records. The tree uses rtree-specific parameters from the `[indexing.rtree]` configuration section for leaf node capacity and splitting behavior.
+- `node_alpha` own energy component shows 17, expected 18
+- `node_beta` own energy component shows 13, expected 14
+- Independent pair count is 0, expected 21
+- Priority order appears sorted by last event timestamp rather than energy accumulation
+- Final digest is `9c23781252b6edea`, expected `2ebb5ffc5b5c4fd7`
 
-3. **Query Execution** — Runs range queries (bounding box containment) and KNN queries (nearest neighbors by Euclidean distance). KNN results are sorted deterministically by `(distance, feed_id, insert_order)` to handle ties.
+## File Locations
 
-4. **Batch Statistics** — Processes range query results in configurable batch windows and computes per-feed point counts. The final statistics represent the counts from the last processing window.
+All source files are at `/app/runtime/`:
 
-5. **Output Generation** — Writes query results and index statistics to JSON files in the output directory.
-
-## Problem
-
-The engine runs without errors but produces incorrect results:
-
-- Some feed records appear to be missing from the index entirely
-- The R-tree structure has unexpected properties (no node splitting despite many records)
-- Batch statistics report inflated counts that exceed the actual number of records
-- KNN query results show non-deterministic ordering for equidistant points
-
-## Expected Correct Output
-
-When all defects are fixed:
-
-- All 55 records (20 sensor + 18 landmark + 17 zone) should be indexed
-- The R-tree should use a leaf capacity of 8, producing a tree of depth 2 with 9 splits
-- Batch window statistics should report per-feed counts from the final window only: sensor=20, landmark=18, zone=17
-- KNN results should be deterministically ordered by (distance, feed_id, insert_order)
+- `/app/runtime/data/thermal_log.txt` — input trace (CORRECT)
+- `/app/runtime/log_parser.py` — log parser (CORRECT)
+- `/app/runtime/run_simulation.py` — orchestrator (CORRECT)
+- `/app/runtime/diffusion_engine.py` — energy vector engine (HAS BUGS)
+- `/app/runtime/lattice_analyzer.py` — independence analysis (HAS BUGS)
+- `/app/runtime/thermal_report.py` — report generation (HAS BUGS — cascading from analyzer)
 
 ## Output Schema
 
-### `/app/runtime/output/query_results.json`
+### thermal_state.jsonl (one JSON object per line, sorted by node_id)
+```json
+{
+  "node_id": "node_alpha",
+  "energy_vector": [18, 3, 3, 3, 3, 3, 3],
+  "vector_sum": 36,
+  "independent_neighbors": ["node_beta", "node_delta", ...],
+  "priority_rank": 5
+}
+```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `range_queries` | list | List of range query result objects |
-| `range_queries[].query_id` | string | Identifier of the range query |
-| `range_queries[].hit_count` | integer | Number of points found in range |
-| `range_queries[].hits` | list | List of hit record objects |
-| `range_queries[].hits[].id` | string | Record identifier |
-| `range_queries[].hits[].feed_id` | string | Source feed name |
-| `range_queries[].hits[].x` | float | X coordinate |
-| `range_queries[].hits[].y` | float | Y coordinate |
-| `range_queries[].hits[].label` | string | Record label |
-| `knn_queries` | list | List of KNN query result objects |
-| `knn_queries[].query_id` | string | Identifier of the KNN query |
-| `knn_queries[].center` | object | Query center point with x, y |
-| `knn_queries[].neighbors` | list | Ordered list of nearest neighbors |
-| `knn_queries[].neighbors[].id` | string | Neighbor record identifier |
-| `knn_queries[].neighbors[].feed_id` | string | Neighbor source feed |
-| `knn_queries[].neighbors[].x` | float | Neighbor X coordinate |
-| `knn_queries[].neighbors[].y` | float | Neighbor Y coordinate |
-| `knn_queries[].neighbors[].label` | string | Neighbor label |
-| `knn_queries[].neighbors[].distance` | float | Euclidean distance from center |
-| `total_records_indexed` | integer | Total number of records in the index |
+### thermal_summary.json
+```json
+{
+  "digest": "2ebb5ffc5b5c4fd7",
+  "total_nodes": 7,
+  "independent_pair_count": 21,
+  "independent_pairs": [["node_alpha", "node_beta"], ...],
+  "priority_order": ["node_epsilon", "node_eta", "node_delta", "node_zeta", "node_gamma", "node_alpha", "node_beta"],
+  "total_energy": 228
+}
+```
 
-### `/app/runtime/output/index_stats.json`
+## Constraints
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `tree_depth` | integer | Depth of the R-tree structure |
-| `max_leaf_capacity` | integer | Maximum entries per leaf node |
-| `split_count` | integer | Number of node splits during construction |
-| `total_indexed` | integer | Total number of indexed records |
-| `batch_window_stats` | object | Per-feed point counts from final batch window |
-| `batch_window_stats.sensor` | integer | Sensor feed count in final window |
-| `batch_window_stats.landmark` | integer | Landmark feed count in final window |
-| `batch_window_stats.zone` | integer | Zone feed count in final window |
-| `window_feed_summary` | object | Per-feed summary from range query execution |
-
-## Key Files
-
-| File | Purpose |
-|------|---------|
-| `/app/runtime/config.ini` | Configuration with feed list, indexing parameters, and query settings |
-| `/app/runtime/feed_loader.py` | Loads and filters spatial records from CSV feeds |
-| `/app/runtime/rtree_index.py` | R-tree index implementation with insert, range query, and KNN |
-| `/app/runtime/query_engine.py` | Executes queries in batch windows and computes statistics |
-| `/app/runtime/run_spatial.py` | Main entry point orchestrating the full process |
-| `/app/runtime/data/sensor_feed.csv` | Sensor location records (20 entries) |
-| `/app/runtime/data/landmark_feed.csv` | Landmark location records (18 entries) |
-| `/app/runtime/data/zone_feed.csv` | Zone location records (17 entries) |
-| `/app/runtime/data/range_queries.csv` | Range query definitions (5 queries) |
-| `/app/runtime/data/knn_queries.csv` | KNN query definitions (3 queries) |
-
-## Your Task
-
-Identify and fix defects in the runtime source files under `/app/runtime/`. The data files and query definitions are correct — the bugs are in the Python source code and its interaction with the configuration file. Focus on:
-
-- How feed names are parsed from the configuration
-- Which configuration section provides indexing parameters
-- How batch window statistics are aggregated across windows
-- How KNN results handle distance ties in sorting
+- Only standard library modules are used
+- Do not modify `log_parser.py`, `run_simulation.py`, or the input data
+- The simulation must produce both output files with correct values
+- All 14 tests must pass after repair
