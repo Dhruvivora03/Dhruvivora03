@@ -3,8 +3,8 @@ author_email = "dhruvpatel2284@gmail.com"
 category = "Scientific Computing & Numerics"
 difficulty = "hard"
 tags = ["lattice-methods", "thermal-simulation", "vector-clocks", "partial-orders", "numerical-computing"]
-difficulty_explanation = "Requires understanding of partial order theory applied to energy vectors, distinguishing vector equality from incomparability, and recognizing that synchronization events must increment the local component. The misleading comments actively defend buggy behavior as correct engineering decisions."
-solution_explanation = "Three code fixes across two files: (1) Add self._energy[self.node_id] += 1 after the merge loop in apply_equilibrate, (2) Replace equality-based independence check with incomparability check using vector_dominates, (3) Replace recency-based priority with sum-based priority. The report file cascades fix from the analyzer."
+difficulty_explanation = "Requires understanding that EQUILIBRATE_MODE='observe' is incorrect (should be 'participate'), that causal-cone disjointness is a flawed independence criterion (correct: partial-order incomparability via non-dominance), and that L2 norm is wrong for priority (correct: linear sum). The code uses proper OOP patterns with strategy functions, making bugs appear as deliberate architectural choices rather than errors."
+solution_explanation = "Three fixes: (1) Change EQUILIBRATE_MODE from 'observe' to 'participate' to enable self-increment in _resolve_propagation, (2) Replace causal-cone disjointness independence check with vector non-dominance (incomparability), (3) Replace L2 norm (Euclidean magnitude) priority with simple sum. The report file cascades fix from the analyzer."
 verification_explanation = "14 tests in 4 tiers: 6 structural (always pass), 3 energy state (need fix 1), 3 independence classification (need fixes 2+3), 2 full consistency (need all fixes). NOP yields 8 pass / 6 fail, oracle yields 14 pass / 0 fail."
 expert_time_estimate_hours = 2.5
 
@@ -14,7 +14,7 @@ description = "Debug a lattice-based thermal diffusion simulation that incorrect
 
 [task.difficulty]
 level = "hard"
-reasoning = "The bugs exploit subtle distinctions in partial order theory (equality vs incomparability) with misleading comments that defend buggy behavior. The independence predicate uses a mathematically valid concept (bidirectional ordering = equality) confused with the required concept (mutual non-dominance = incomparability). Combined with missing state increments and wrong sort keys, this requires deep understanding of vector-based distributed state tracking."
+reasoning = "The bugs exploit layered abstractions: a configuration flag (observe vs participate) controls increment behavior through a helper function, a mathematically plausible but wrong independence criterion (causal-cone disjointness vs partial-order incomparability) is buried behind helper functions, and the Euclidean norm sounds mathematically sophisticated but gives wrong priority ordering. All bugs are defended by authoritative comments explaining why the wrong approach is correct."
 
 [task.runtime]
 entrypoint = "python3 /app/runtime/run_simulation.py"

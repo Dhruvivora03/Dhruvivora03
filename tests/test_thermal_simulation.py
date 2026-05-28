@@ -38,7 +38,7 @@ def load_report():
 
 
 class TestTier1Structural:
-    """Structural validation — output format and completeness."""
+    """Structural validation -- output format and completeness."""
 
     def test_output_files_exist(self):
         """Both output files must exist after simulation."""
@@ -90,13 +90,13 @@ class TestTier1Structural:
 
 
 class TestTier2EnergyState:
-    """Energy vector correctness — requires proper EQUILIBRATE handling."""
+    """Energy vector correctness -- requires proper EQUILIBRATE handling."""
 
     def test_energy_after_equilibrate(self):
         """Node alpha's own energy must include EQUILIBRATE contribution.
 
-        node_alpha has 8 DIFFUSE (+8), 3 CONVECT (+6), and 1 EQUILIBRATE (+1).
-        Own component should be BASE(3) + 8 + 6 + 1 = 18.
+        node_alpha processes 1 EQUILIBRATE event. Its own energy component
+        must reflect both regular events AND the equilibration activity cost.
         """
         records = load_state()
         alpha = next(r for r in records if r["node_id"] == "node_alpha")
@@ -104,7 +104,7 @@ class TestTier2EnergyState:
         own_energy = alpha["energy_vector"][0]
         assert own_energy == 18, (
             f"node_alpha own energy expected 18, got {own_energy}. "
-            f"EQUILIBRATE must increment the node's own component."
+            f"EQUILIBRATE events must contribute to the node's own component."
         )
 
     def test_equilibrate_knowledge_transfer(self):
@@ -122,7 +122,7 @@ class TestTier2EnergyState:
         )
 
     def test_vector_sums_with_merges(self):
-        """Nodes with EQUILIBRATE events must have higher sums than isolated nodes.
+        """Nodes with EQUILIBRATE events must have correct total energy.
 
         node_beta (has EQUILIBRATE) should have sum 38.
         node_eta (no EQUILIBRATE) should have sum 29.
@@ -144,14 +144,13 @@ class TestTier2EnergyState:
 
 
 class TestTier3Independence:
-    """Thermal independence classification — requires correct predicate and priority."""
+    """Thermal independence classification -- requires correct predicate and priority."""
 
-    def test_priority_not_physical_time(self):
-        """Priority must be by energy sum, not by event recency.
+    def test_priority_not_geometric(self):
+        """Priority must be by total energy sum, not geometric magnitude.
 
         Correct first (lowest sum): node_epsilon (sum=28)
         Correct last (highest sum): node_beta (sum=38)
-        Buggy order uses last event sequence number instead.
         """
         report = load_report()
         priority = report["priority_order"]
@@ -159,20 +158,21 @@ class TestTier3Independence:
             f"First priority expected node_epsilon, got {priority[0]}"
         )
         assert priority[-1] == "node_beta", (
-            f"Last priority expected node_beta, got {priority[-1]}"
+            f"Last priority expected node_beta, got {priority[-1]}. "
+            f"Priority should use total energy sum, not Euclidean magnitude."
         )
 
     def test_independent_pair_count(self):
         """Exactly 21 thermally independent pairs must be identified.
 
-        With correct vectors (Bug 1 fixed) and correct independence predicate
-        (Bug 2 fixed), all 21 pairs of 7 nodes are thermally independent
-        since no node's vector dominates another's.
+        With correct energy vectors and the correct independence criterion,
+        all 21 pairs of 7 nodes are thermally independent because no node's
+        vector dominates another's in the component-wise partial order.
         """
         report = load_report()
         assert report["independent_pair_count"] == 21, (
             f"Expected 21 independent pairs, got {report['independent_pair_count']}. "
-            f"Independence requires incomparability (neither dominates), not equality."
+            f"Independence requires mutual non-dominance in the partial order."
         )
 
     def test_independence_coverage(self):
@@ -196,7 +196,7 @@ class TestTier3Independence:
 
 
 class TestTier4Consistency:
-    """Full simulation consistency — requires all bugs to be fixed."""
+    """Full simulation consistency -- requires all bugs to be fixed."""
 
     def test_digest(self):
         """State digest must match the verified correct value.

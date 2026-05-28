@@ -11,26 +11,19 @@ import re
 sys.path.insert(0, "/app/runtime")
 
 # ============================================================
-# Fix Bug 1: diffusion_engine.py - missing own-component increment
-# after EQUILIBRATE
+# Fix Bug 1: diffusion_engine.py - EQUILIBRATE_MODE set to "observe"
+# should be "participate" to enable self-increment
 # ============================================================
 
 engine_path = "/app/runtime/diffusion_engine.py"
 with open(engine_path, "r") as f:
     engine_code = f.read()
 
-# Find the apply_equilibrate method and add the increment after the merge loop
-# The bug is that after the for loop in apply_equilibrate, self._energy[self.node_id] += 1 is missing
-# We locate the end of the for loop (last line: self._energy[node] = max(...)) and add the increment after
-
-# Replace the method body: add increment after the max line
+# Change the mode from "observe" to "participate"
 engine_code = re.sub(
-    r'(    def apply_equilibrate\(self, neighbor_state\):.*?'
-    r'self._energy\[node\] = max\(self._energy\[node\], incoming\))',
-    r'''\1
-        self._energy[self.node_id] += 1''',
-    engine_code,
-    flags=re.DOTALL
+    r'EQUILIBRATE_MODE\s*=\s*"observe"',
+    'EQUILIBRATE_MODE = "participate"',
+    engine_code
 )
 
 with open(engine_path, "w") as f:
@@ -38,51 +31,52 @@ with open(engine_path, "w") as f:
 
 
 # ============================================================
-# Fix Bug 2: lattice_analyzer.py - independence predicate checks
-# equality instead of incomparability
+# Fix Bug 2: lattice_analyzer.py - independence uses causal-cone
+# disjointness instead of partial-order incomparability
 # ============================================================
 
 analyzer_path = "/app/runtime/lattice_analyzer.py"
 with open(analyzer_path, "r") as f:
     analyzer_code = f.read()
 
-# Replace the buggy independence function body
-# Old: uses vector_leq both ways (checks equality)
-# New: uses not vector_dominates both ways (checks incomparability)
-analyzer_code = re.sub(
-    r'(def nodes_are_thermally_independent\(vec_a, vec_b\):).*?'
-    r'return a_bounded_by_b and b_bounded_by_a',
-    r'''def nodes_are_thermally_independent(vec_a, vec_b):
+# Replace the causal-cone based independence with non-dominance check
+old_independence = re.compile(
+    r'def nodes_are_thermally_independent\(vec_a, vec_b\):.*?'
+    r'return _cones_are_disjoint\(cone_a, cone_b\)',
+    re.DOTALL
+)
+
+new_independence = '''def nodes_are_thermally_independent(vec_a, vec_b):
     """Determine if two lattice nodes have independent thermal profiles.
 
     Two nodes are independent when neither vector dominates the other
-    (incomparability in the partial order of component-wise comparison).
+    in the component-wise partial order (incomparability).
     """
-    return not vector_dominates(vec_a, vec_b) and not vector_dominates(vec_b, vec_a)''',
-    analyzer_code,
-    flags=re.DOTALL
+    return not vector_dominates(vec_a, vec_b) and not vector_dominates(vec_b, vec_a)'''
+
+analyzer_code = old_independence.sub(new_independence, analyzer_code)
+
+
+# ============================================================
+# Fix Bug 3: lattice_analyzer.py - priority uses L2 norm (Euclidean
+# magnitude) instead of simple sum (total accumulated energy)
+# ============================================================
+
+old_priority = re.compile(
+    r'def compute_simulation_priority\(nodes, vectors, events\):.*?'
+    r'return sorted\(nodes, key=energy_magnitude\)',
+    re.DOTALL
 )
 
-
-# ============================================================
-# Fix Bug 3: lattice_analyzer.py - priority sorts by recency
-# instead of by vector sum
-# ============================================================
-
-# Replace the buggy priority function
-analyzer_code = re.sub(
-    r'(def compute_simulation_priority\(nodes, vectors, events\):).*?'
-    r'return sorted\(nodes, key=lambda n: last_seq\.get\(n, 0\)\)',
-    r'''def compute_simulation_priority(nodes, vectors, events):
+new_priority = '''def compute_simulation_priority(nodes, vectors, events):
     """Determine simulation scheduling priority for lattice nodes.
 
-    Priority is determined by total accumulated energy (vector sum).
-    Nodes with lower energy sums are scheduled first to balance the lattice.
+    Priority is determined by total accumulated energy (sum of all
+    vector components). Nodes with lower total energy are scheduled first.
     """
-    return sorted(nodes, key=lambda n: sum(vectors[n]))''',
-    analyzer_code,
-    flags=re.DOTALL
-)
+    return sorted(nodes, key=lambda n: sum(vectors[n]))'''
+
+analyzer_code = old_priority.sub(new_priority, analyzer_code)
 
 with open(analyzer_path, "w") as f:
     f.write(analyzer_code)
