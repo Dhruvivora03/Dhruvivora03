@@ -1,34 +1,33 @@
 author_name = "Dhruvkumar Patel"
 author_email = "dhruvpatel2284@gmail.com"
-category = "spatial_indexing"
+category = "Scientific Computing & Numerics"
 difficulty = "hard"
-tags = ["spatial-indexing", "rtree", "query-engine", "geospatial", "data-structures"]
-
-difficulty_explanation = "Requires identifying four interacting bugs across three source files: a whitespace parsing issue in feed configuration, a wrong config section reference for tree parameters, an accumulation logic error in batch statistics, and a missing sort key component for deterministic KNN ordering. The bugs are subtle and their effects compound."
-solution_explanation = "Fix feed_loader.py to strip whitespace from comma-split active feeds list, fix rtree_index.py to read max_leaf_capacity from [indexing.rtree] instead of [indexing], fix query_engine.py to use assignment instead of accumulation for per-window batch statistics, and fix rtree_index.py KNN sort key to include feed_id between distance and insert_order."
-verification_explanation = "Tests validate output correctness at multiple levels: basic structure, individual bug effects (zone records present, correct leaf capacity, correct batch stats), and combined correctness (KNN ordering, total record count, full range query accuracy). All 10 tests must pass."
-expert_time_estimate_hours = 3.0
+tags = ["molecular-dynamics", "vector-clocks", "partial-orders", "energy-simulation", "numerical-computing"]
+difficulty_explanation = "Requires understanding of vector-based energy tracking, partial order theory (incomparability vs equality), and the distinction between passive knowledge transfer and active energy dissipation. Three interdependent bugs across two files with misleading comments defending the buggy behavior."
+solution_explanation = "Fix 1: Add self._energy[self.particle_id] += 1 after the COUPLE merge loop in dissipation_engine.py. Fix 2: Replace equality check (bidirectional leq) with incomparability check (neither dominates) in field_analyzer.py. Fix 3: Replace temporal recency sort with vector-sum sort in compute_shutdown_priority."
+verification_explanation = "14 tests in 4 tiers: 6 structural (always pass), 3 state-value (need Fix 1), 3 pair-classification (need Fixes 2+3), 2 full-consistency (need all fixes). NOP gives 8 pass / 6 fail, Oracle gives 14 pass / 0 fail."
+expert_time_estimate_hours = 2.5
 
 [task]
-name = "spatial-index-repair"
-description = "Debug a spatial indexing engine that builds an R-tree from geospatial feed data and executes range and k-nearest-neighbor queries. The system has four subtle defects causing incorrect feed filtering, degenerate tree structure, inflated statistics, and non-deterministic query ordering."
+name = "particle-energy-repair"
+description = "Debug a molecular dynamics energy dissipation simulation where particles track energy vectors through DRIFT, COLLIDE, and COUPLE events. The dissipation engine, field analyzer, and report writer contain subtle bugs in vector increment logic, decoupling predicate, and priority ordering."
 
 [task.difficulty]
 level = "hard"
-reasoning = "Four interacting bugs across multiple files require understanding of configuration parsing, tree data structures, batch processing semantics, and sort stability. Bugs are not indicated by comments or obvious code smells."
+reasoning = "Three bugs span two files with cascading effects. Bug 2 (equality vs incomparability) requires deep understanding of partial order semantics. Misleading comments actively defend incorrect behavior as sound engineering decisions."
 
 [task.runtime]
-entrypoint = "python3 -m runtime.run_spatial"
+entrypoint = "python3 /app/runtime/simulate_field.py"
 language = "python"
 dependencies = "stdlib-only"
 
 [task.validator]
 command = "bash tests/test.sh"
-description = "Runs the spatial indexing engine and validates query results and index statistics against expected correct values using pytest."
+description = "Runs 14 pytest tests across 4 difficulty tiers validating energy computation, pair classification, shutdown ordering, and digest integrity."
 
 [task.repair]
 command = "bash solution/solve.sh"
-description = "Patches four bugs in the runtime source files and re-runs the engine to produce correct output."
+description = "Applies fixes to dissipation_engine.py and field_analyzer.py, then regenerates simulation outputs."
 
 [task.resources]
 timeout = 300
