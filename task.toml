@@ -1,34 +1,33 @@
 author_name = "Dhruvkumar Patel"
 author_email = "dhruvpatel2284@gmail.com"
-category = "spatial_indexing"
+category = "Scientific Computing & Numerics"
 difficulty = "hard"
-tags = ["spatial-indexing", "rtree", "query-engine", "geospatial", "data-structures"]
-
-difficulty_explanation = "Requires identifying four interacting bugs across three source files: a whitespace parsing issue in feed configuration, a wrong config section reference for tree parameters, an accumulation logic error in batch statistics, and a missing sort key component for deterministic KNN ordering. The bugs are subtle and their effects compound."
-solution_explanation = "Fix feed_loader.py to strip whitespace from comma-split active feeds list, fix rtree_index.py to read max_leaf_capacity from [indexing.rtree] instead of [indexing], fix query_engine.py to use assignment instead of accumulation for per-window batch statistics, and fix rtree_index.py KNN sort key to include feed_id between distance and insert_order."
-verification_explanation = "Tests validate output correctness at multiple levels: basic structure, individual bug effects (zone records present, correct leaf capacity, correct batch stats), and combined correctness (KNN ordering, total record count, full range query accuracy). All 10 tests must pass."
-expert_time_estimate_hours = 3.0
+tags = ["lattice-methods", "thermal-simulation", "vector-clocks", "partial-orders", "numerical-computing"]
+difficulty_explanation = "Requires understanding that EQUILIBRATE_MODE='observe' is incorrect (should be 'participate'), that causal-cone disjointness is a flawed independence criterion (correct: partial-order incomparability via non-dominance), and that L2 norm is wrong for priority (correct: linear sum). The code uses proper OOP patterns with strategy functions, making bugs appear as deliberate architectural choices rather than errors."
+solution_explanation = "Three fixes: (1) Change EQUILIBRATE_MODE from 'observe' to 'participate' to enable self-increment in _resolve_propagation, (2) Replace causal-cone disjointness independence check with vector non-dominance (incomparability), (3) Replace L2 norm (Euclidean magnitude) priority with simple sum. The report file cascades fix from the analyzer."
+verification_explanation = "14 tests in 4 tiers: 6 structural (always pass), 3 energy state (need fix 1), 3 independence classification (need fixes 2+3), 2 full consistency (need all fixes). NOP yields 8 pass / 6 fail, oracle yields 14 pass / 0 fail."
+expert_time_estimate_hours = 2.5
 
 [task]
-name = "spatial-index-repair"
-description = "Debug a spatial indexing engine that builds an R-tree from geospatial feed data and executes range and k-nearest-neighbor queries. The system has four subtle defects causing incorrect feed filtering, degenerate tree structure, inflated statistics, and non-deterministic query ordering."
+name = "lattice-thermal-repair"
+description = "Debug a lattice-based thermal diffusion simulation that incorrectly computes energy propagation vectors, misclassifies thermal independence between nodes, and produces wrong scheduling priorities."
 
 [task.difficulty]
 level = "hard"
-reasoning = "Four interacting bugs across multiple files require understanding of configuration parsing, tree data structures, batch processing semantics, and sort stability. Bugs are not indicated by comments or obvious code smells."
+reasoning = "The bugs exploit layered abstractions: a configuration flag (observe vs participate) controls increment behavior through a helper function, a mathematically plausible but wrong independence criterion (causal-cone disjointness vs partial-order incomparability) is buried behind helper functions, and the Euclidean norm sounds mathematically sophisticated but gives wrong priority ordering. All bugs are defended by authoritative comments explaining why the wrong approach is correct."
 
 [task.runtime]
-entrypoint = "python3 -m runtime.run_spatial"
+entrypoint = "python3 /app/runtime/run_simulation.py"
 language = "python"
 dependencies = "stdlib-only"
 
 [task.validator]
 command = "bash tests/test.sh"
-description = "Runs the spatial indexing engine and validates query results and index statistics against expected correct values using pytest."
+description = "Runs 14 pytest tests across 4 tiers validating structural output, energy correctness, independence classification, and digest consistency."
 
 [task.repair]
 command = "bash solution/solve.sh"
-description = "Patches four bugs in the runtime source files and re-runs the engine to produce correct output."
+description = "Applies fixes to diffusion_engine.py and lattice_analyzer.py, then re-runs the simulation."
 
 [task.resources]
 timeout = 300
