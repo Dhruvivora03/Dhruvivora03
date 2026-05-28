@@ -1,36 +1,65 @@
-author_name = "Dhruvkumar Patel"
-author_email = "dhruvpatel2284@gmail.com"
-category = "Cybersecurity"
-difficulty = "hard"
-tags = ["intrusion-detection", "threat-propagation", "network-segmentation", "incident-response", "partial-orders"]
-difficulty_explanation = "Requires understanding that the conditional lateral attribution is incorrect (should always attribute), that uniform-polarity of the difference vector checks subsumption/dominance (the OPPOSITE of safe isolation), and that L2 norm is wrong for triage priority (correct: linear sum). Bugs are defended by authoritative security-domain docstrings."
-solution_explanation = "Three fixes: (1) Remove conditional check in process_lateral so own threat always increments, (2) Replace uniform-polarity isolation check with mixed-polarity check (incomparability), (3) Replace geometric magnitude triage with simple sum. The report file cascades fix from the classifier."
-verification_explanation = "14 tests in 4 tiers: 6 structural (always pass), 3 threat state (need fix 1), 3 isolation classification (need fixes 2+3), 2 full consistency (need all fixes). NOP yields 8 pass / 6 fail, oracle yields 14 pass / 0 fail."
-expert_time_estimate_hours = 2.5
-
 [task]
-name = "threat-propagation-repair"
-description = "Debug a network intrusion detection pipeline that incorrectly computes threat propagation vectors, misclassifies segment isolation safety, and produces wrong triage priorities."
+slug = "token-flow-repair"
+title = "Token Flow Repair: Dataflow Liveness Analysis Debugging"
+category = "Programming Languages / Compilers / Parsers"
+difficulty = "hard"
 
-[task.difficulty]
-level = "hard"
-reasoning = "The bugs exploit security-domain reasoning: a conditional attribution that only fires when the adjacent segment reports higher threat (the attribution IS present but conditionally disabled), an inverted isolation predicate (uniform-polarity = dominance/subsumption, but docstring argues it means safe isolation), and Euclidean magnitude triage that sounds mathematically rigorous but gives wrong ordering."
+[task.description]
+summary = "Debug a backward dataflow liveness analysis system for register-based bytecode. Fix errors in the transfer function, interference criterion, and allocation priority metric."
+domain = "compilers"
+concepts = ["dataflow analysis", "liveness", "interference graphs", "register allocation", "graph coloring"]
 
-[task.runtime]
-entrypoint = "python3 /app/runtime/run_detection.py"
-language = "python"
-dependencies = "stdlib-only"
+[author]
+name = "Dhruvkumar Patel"
+email = "dhruvpatel2284@gmail.com"
 
-[task.validator]
-command = "bash tests/test.sh"
-description = "Runs 14 pytest tests across 4 tiers validating structural output, threat correctness, isolation classification, and fingerprint consistency."
+[environment]
+dockerfile = "environment/Dockerfile"
+runtime_dir = "runtime/"
+data_dir = "runtime/data/"
 
-[task.repair]
-command = "bash solution/solve.sh"
-description = "Applies fixes to propagation_model.py and segment_classifier.py, then re-runs detection."
+[testing]
+test_script = "tests/test.sh"
+test_file = "tests/test_dataflow.py"
+total_tests = 14
+nop_pass = 8
+nop_fail = 6
+oracle_pass = 14
+oracle_fail = 0
 
-[task.resources]
-timeout = 300
-cpu = 2
-memory = "2GB"
-disk = "1GB"
+[testing.tiers]
+tier1 = { name = "Structural", tests = 6, description = "File existence, format, register names" }
+tier2 = { name = "Liveness Correctness", tests = 3, description = "Live set validation at key program points" }
+tier3 = { name = "Interference & Priority", tests = 3, description = "Graph structure and allocation ordering" }
+tier4 = { name = "Digest & Cross-Validation", tests = 2, description = "Fingerprint and internal consistency" }
+
+[solution]
+script = "solution/solve.sh"
+repair_file = "solution/repair_token_flow.py"
+
+[bugs]
+count = 4
+
+[[bugs.entries]]
+file = "liveness_engine.py"
+description = "Transfer function subtracts USE(n) instead of DEF(n) from LiveOut"
+severity = "critical"
+cascades = false
+
+[[bugs.entries]]
+file = "interference_builder.py"
+description = "Interference check uses OR instead of AND (overly conservative)"
+severity = "major"
+cascades = true
+
+[[bugs.entries]]
+file = "allocation_scorer.py"
+description = "Priority uses definition count instead of interference degree"
+severity = "moderate"
+cascades = false
+
+[[bugs.entries]]
+file = "analysis_output.py"
+description = "Cascades from interference_builder - uses buggy interference graph"
+severity = "cascade"
+cascades = true

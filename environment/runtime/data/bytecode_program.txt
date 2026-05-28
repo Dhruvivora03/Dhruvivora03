@@ -1,0 +1,20 @@
+BB0_0: LOAD r1, mem[0]
+BB0_1: LOAD r2, mem[1]
+BB0_2: ADD r3, r1, r2
+BB0_3: LOAD r4, mem[2]
+BB0_4: MUL r5, r3, r4
+BB0_5: CMP r5, r0
+BB0_6: BRZ BB2_0
+BB1_0: ADD r6, r1, r4
+BB1_1: MUL r7, r6, r2
+BB1_2: SUB r8, r7, r3
+BB1_3: ADD r9, r8, r5
+BB1_4: STORE mem[3], r9
+BB1_5: MUL r5, r9, r2
+BB1_6: JMP BB2_0
+BB2_0: PHI r6, r5, r9
+BB2_1: ADD r7, r6, r1
+BB2_2: MUL r8, r7, r2
+BB2_3: ADD r9, r8, r4
+BB2_4: STORE mem[4], r9
+BB2_5: RET
