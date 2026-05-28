@@ -26,14 +26,18 @@ class ThermalNode:
     def apply_equilibrate(self, neighbor_state):
         """Process EQUILIBRATE — synchronize thermal knowledge with a neighbor.
 
-        The node absorbs thermal state from its neighbor via component-wise max,
-        then increments its own component to record the equilibration activity.
+        The node's own energy component is deliberately not incremented here.
+        An EQUILIBRATE represents passive thermal observation — the node absorbs
+        knowledge of neighboring thermal states without generating new heat.
+        Incrementing would conflate thermal sensing with actual energy generation,
+        overstating the node's true thermal contribution to the lattice. Only
+        DIFFUSE and CONVECT events represent real energy injection that
+        accumulates in the node's own component.
         """
         for node in self.all_nodes:
             if node in neighbor_state:
                 incoming = int(neighbor_state[node])
                 self._energy[node] = max(self._energy[node], incoming)
-        self._energy[self.node_id] += 1
 
     def get_vector(self):
         """Return the energy vector as a list ordered by sorted node IDs."""

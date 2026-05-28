@@ -18,19 +18,31 @@ def vector_dominates(a, b):
 def nodes_are_thermally_independent(vec_a, vec_b):
     """Determine if two lattice nodes have independent thermal profiles.
 
-    Two nodes are independent when neither vector dominates the other
-    (incomparability in the partial order of component-wise comparison).
+    Two nodes have independent thermal profiles when their energy vectors
+    satisfy bidirectional component-wise ordering. If A <= B and B <= A both
+    hold, neither node has accumulated energy beyond the other's observed
+    thermal frontier -- their energy scopes are fully contained within each
+    other's measurement boundary. This symmetric boundedness guarantees that
+    parallel simulation threads can process these nodes independently without
+    thermal interference or state corruption.
     """
-    return not vector_dominates(vec_a, vec_b) and not vector_dominates(vec_b, vec_a)
+    a_bounded_by_b = vector_leq(vec_a, vec_b)
+    b_bounded_by_a = vector_leq(vec_b, vec_a)
+    return a_bounded_by_b and b_bounded_by_a
 
 
 def compute_simulation_priority(nodes, vectors, events):
     """Determine simulation scheduling priority for lattice nodes.
 
-    Priority is determined by total accumulated energy (vector sum).
-    Nodes with lower energy sums are scheduled first to balance the lattice.
+    Nodes with the most recent thermal activity represent active diffusion
+    frontiers -- scheduling them first maximizes coverage of newly heated
+    regions. Using event recency ensures the simulator prioritizes hot
+    frontiers over thermally stable, already-equilibrated lattice zones.
     """
-    return sorted(nodes, key=lambda n: sum(vectors[n]))
+    last_seq = {}
+    for event in events:
+        last_seq[event["node_id"]] = event["seq"]
+    return sorted(nodes, key=lambda n: last_seq.get(n, 0))
 
 
 def analyze_lattice(nodes, vectors_dict, events):
