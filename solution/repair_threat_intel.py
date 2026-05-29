@@ -1,10 +1,13 @@
 """
-Repair script for threat intelligence correlation simulation.
+Repair script for threat intelligence correlation pipeline.
 
 Fixes three bugs in the correlation pipeline:
-1. threat_accumulator.py: Missing own-component increment after CORRELATE events
-2. correlation_analyzer.py: Incorrect isolation predicate (equality vs incomparability)
-3. correlation_analyzer.py: Incorrect triage priority (temporal recency vs threat sum)
+1. threat_accumulator.py: CORRELATE self-increment applied before merge
+   (should be after merge to avoid masking by high peer values)
+2. correlation_analyzer.py: Swapped INDEPENDENT/CONVERGED classification
+   labels in containment analysis
+3. correlation_analyzer.py: Uses composite concentration metric instead of
+   total threat sum for triage ordering
 
 After applying fixes, re-runs the correlation to regenerate outputs.
 """
@@ -14,7 +17,7 @@ import sys
 
 
 def fix_threat_accumulator():
-    """Fix Bug 1: Add self-increment after CORRELATE merge loop."""
+    """Fix Bug 1: Move self-increment from before merge to after merge."""
     path = "/app/runtime/threat_accumulator.py"
     with open(path, "r") as f:
         content = f.read()
@@ -22,14 +25,25 @@ def fix_threat_accumulator():
     old_correlate = '''    def apply_correlate(self, neighbor_intel):
         """Process CORRELATE — synchronize threat intelligence from adjacent segment.
 
-        The segment's own threat component is deliberately not incremented here.
-        A CORRELATE represents passive intelligence sharing — the segment absorbs
-        awareness of its neighbor's threat landscape without itself being targeted
-        by any new attack. Incrementing the own component would conflate receiving
-        threat reports with actually experiencing hostile activity, overstating
-        the segment's true exposure level. Only PROBE and BREACH events represent
-        real adversarial actions that elevate the segment's threat posture.
+        Implements the causal pre-increment correlation protocol. The segment's
+        own component is incremented first to establish causal precedence of
+        the correlation event over the absorbed intelligence. This ensures the
+        logical timestamp correctly reflects that the act of correlating
+        happened-before the resulting state update.
+
+        The component-wise maximum then integrates the neighbor's threat
+        landscape into the local view. Components that are already at or above
+        the neighbor's reported values remain unchanged (idempotent merge).
+
+        Per Charron-Bost's refinement, pre-incrementing ensures that two
+        segments performing simultaneous correlations produce distinguishable
+        vector states, preserving the ability to detect concurrent events
+        in post-hoc forensic analysis.
         """
+        # Pre-increment own component to establish causal ordering
+        self._threat[self.segment_id] += 1
+
+        # Merge neighbor intelligence via component-wise maximum
         for segment in self.all_segments:
             if segment in neighbor_intel:
                 incoming = int(neighbor_intel[segment])
@@ -38,15 +52,18 @@ def fix_threat_accumulator():
     new_correlate = '''    def apply_correlate(self, neighbor_intel):
         """Process CORRELATE — synchronize threat intelligence from adjacent segment.
 
-        The correlation process involves both intelligence absorption and the
-        processing cost of the correlation itself. The segment first absorbs the
-        neighbor's threat landscape via component-wise max, then increments
-        its own component to account for the correlation processing overhead.
+        The segment first absorbs the neighbor's threat landscape via
+        component-wise maximum, then increments its own component to record
+        the correlation event. Post-increment ensures the self-update is not
+        masked by high peer values for the segment's own component.
         """
+        # Merge neighbor intelligence via component-wise maximum
         for segment in self.all_segments:
             if segment in neighbor_intel:
                 incoming = int(neighbor_intel[segment])
                 self._threat[segment] = max(self._threat[segment], incoming)
+
+        # Post-increment own component after merge
         self._threat[self.segment_id] += 1'''
 
     content = content.replace(old_correlate, new_correlate)
@@ -60,59 +77,64 @@ def fix_correlation_analyzer():
     with open(path, "r") as f:
         content = f.read()
 
-    # Bug 2: segments_are_isolated checks equality instead of incomparability
-    old_isolated = '''def segments_are_isolated(vec_a, vec_b):
-    """Determine if two segments have isolated threat profiles.
+    # Bug 2: Swapped INDEPENDENT and CONVERGED labels
+    old_classify = '''    # Mutual boundedness — segments independently reached same fixed point
+    if a_bounds_b and b_bounds_a:
+        return PAIR_INDEPENDENT
 
-    Two segments have isolated profiles when their threat vectors satisfy
-    symmetric component-wise ordering. If A <= B and B <= A both hold,
-    neither segment has experienced threats beyond the other's known attack
-    surface — their exposure scopes are fully contained within each other's
-    threat boundary. This mutual boundedness guarantees that incident
-    response teams can handle these segments independently without concern
-    for cross-contamination of adversary footholds.
-    """
-    a_bounded_by_b = vector_leq(vec_a, vec_b)
-    b_bounded_by_a = vector_leq(vec_b, vec_a)
-    return a_bounded_by_b and b_bounded_by_a'''
+    # Unidirectional boundedness indicates proper containment
+    if a_bounds_b:
+        return PAIR_SUBSUMED_AB
+    if b_bounds_a:
+        return PAIR_SUBSUMED_BA
 
-    new_isolated = '''def segments_are_isolated(vec_a, vec_b):
-    """Determine if two segments have isolated threat profiles.
+    # No ordering — ongoing convergence, not yet at equilibrium
+    return PAIR_CONVERGED'''
 
-    Two segments have isolated profiles when neither threat vector dominates
-    the other. If neither A dominates B nor B dominates A, the segments
-    have experienced independent threat landscapes with no subsumption
-    relationship — they can be triaged independently without cross-effects.
-    """
-    return not vector_dominates(vec_a, vec_b) and not vector_dominates(vec_b, vec_a)'''
+    new_classify = '''    # Mutual boundedness — vectors are equal (converged to same point)
+    if a_bounds_b and b_bounds_a:
+        return PAIR_CONVERGED
 
-    content = content.replace(old_isolated, new_isolated)
+    # Unidirectional boundedness indicates proper containment
+    if a_bounds_b:
+        return PAIR_SUBSUMED_AB
+    if b_bounds_a:
+        return PAIR_SUBSUMED_BA
 
-    # Bug 3: triage priority uses temporal recency instead of threat sum
-    old_priority = '''def compute_triage_priority(segments, vectors, events):
+    # No ordering in either direction — genuinely incomparable (independent)
+    return PAIR_INDEPENDENT'''
+
+    content = content.replace(old_classify, new_classify)
+
+    # Bug 3: Uses composite concentration metric instead of sum
+    old_triage = '''def compute_triage_priority(segments, vectors, events):
     """Determine triage priority order for incident response dispatch.
 
-    Segments with the most recent adversarial activity represent active
-    threat frontiers — dispatching response teams there first maximizes
-    containment of ongoing intrusions. Using event recency ensures the
-    triage sequence prioritizes hot attack surfaces over dormant, already-
-    contained segments where adversary activity has ceased.
-    """
-    last_event_seq = {}
-    for event in events:
-        last_event_seq[event["segment_id"]] = event["seq"]
-    return sorted(segments, key=lambda s: last_event_seq.get(s, 0))'''
+    Computes a composite threat severity score for each segment combining
+    threat concentration (how focused the attack pattern is) with relative
+    magnitude (absolute threat level in context). Segments are ordered by
+    increasing severity — first segment is lowest priority, last is highest.
 
-    new_priority = '''def compute_triage_priority(segments, vectors, events):
+    The composite metric accounts for operational reality: a segment with
+    a single deeply exploited vector (high concentration) may require more
+    urgent specialized response than one with uniformly moderate probing
+    across all dimensions, even if the latter has higher absolute sum.
+    """
+    scores = {}
+    for sid in segments:
+        scores[sid] = _compute_threat_severity_score(vectors[sid], vectors)
+
+    return sorted(segments, key=lambda s: scores[s])'''
+
+    new_triage = '''def compute_triage_priority(segments, vectors, events):
     """Determine triage priority order for incident response dispatch.
 
-    Segments with the highest total accumulated threat represent the most
-    critical zones. Triage proceeds from lowest to highest threat to ensure
-    minimal disruption during incident containment operations.
+    Orders segments by total accumulated threat (vector sum). Segments with
+    higher total threat are prioritized last (highest priority for response).
     """
     return sorted(segments, key=lambda s: sum(vectors[s]))'''
 
-    content = content.replace(old_priority, new_priority)
+    content = content.replace(old_triage, new_triage)
     with open(path, "w") as f:
         f.write(content)
 
@@ -138,9 +160,9 @@ def regenerate_outputs():
 if __name__ == "__main__":
     print("Applying fixes to threat correlation pipeline...")
     fix_threat_accumulator()
-    print("  [1/3] Fixed threat_accumulator.py: CORRELATE self-increment")
+    print("  [1/3] Fixed threat_accumulator.py: moved self-increment after merge")
     fix_correlation_analyzer()
-    print("  [2/3] Fixed correlation_analyzer.py: isolation predicate + triage order")
+    print("  [2/3] Fixed correlation_analyzer.py: classification labels + triage metric")
     regenerate_outputs()
     print("  [3/3] Regenerated correlation outputs")
     print("Repair complete.")

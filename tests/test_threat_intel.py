@@ -1,5 +1,5 @@
 """
-Test suite for threat intelligence correlation simulation.
+Test suite for threat intelligence correlation pipeline.
 
 Validates correctness of the correlation pipeline across four tiers:
 - Tier 1 (structural): output file existence, segment counts, field integrity
@@ -60,8 +60,8 @@ class TestTier1Structural:
         for entry in state:
             if "threat_vector" in entry:
                 assert len(entry["threat_vector"]) == 7, (
-                    f"Vector for {entry['segment_id']} has {len(entry['threat_vector'])} "
-                    f"components, expected 7"
+                    f"Vector for {entry['segment_id']} has "
+                    f"{len(entry['threat_vector'])} components, expected 7"
                 )
 
     def test_required_fields(self):
@@ -74,12 +74,14 @@ class TestTier1Structural:
                 f"{required - set(entry.keys())}"
             )
 
-    def test_total_event_count(self):
-        """Report must reference the correct number of monitored segments."""
+    def test_report_structure(self):
+        """Report must contain segment_state, correlation_analysis, and digest entries."""
         report = load_jsonl(REPORT_PATH)
-        analysis = [r for r in report if r.get("type") == "correlation_analysis"]
-        assert len(analysis) == 1, "Expected exactly one correlation_analysis entry"
-        # Verify triage_order has all 7 segments
+        types = {r.get("type") for r in report}
+        assert "segment_state" in types, "Missing segment_state entries"
+        assert "correlation_analysis" in types, "Missing correlation_analysis entry"
+        assert "digest" in types, "Missing digest entry"
+        analysis = [r for r in report if r["type"] == "correlation_analysis"]
         assert len(analysis[0]["triage_order"]) == 7
 
 
@@ -89,22 +91,24 @@ class TestTier1Structural:
 
 
 class TestTier2StateValues:
-    """Threat vector correctness — requires proper CORRELATE increment logic."""
+    """Threat vector correctness — requires proper CORRELATE increment timing."""
 
     def test_dmz_own_threat_after_correlate(self):
-        """DMZ's own threat component must reflect CORRELATE participation.
+        """DMZ's own threat component must reflect correct CORRELATE processing.
 
         DMZ participates in 2 CORRELATE events plus 4 PROBE (+1 each) and
-        2 BREACH (+2 each) events. Own component must equal
-        BASE(3) + 4*1 + 2*2 + correlation_increments = expected value.
+        2 BREACH (+2 each). The correlation increment must be applied after
+        intelligence absorption to correctly sequence the causal update.
         """
         state = load_jsonl(STATE_PATH)
         dmz = next(s for s in state if s["segment_id"] == "dmz")
         # Sorted segments: bastion(0), core(1), dmz(2), edge(3), enclave(4), relay(5), vault(6)
         dmz_own = dmz["threat_vector"][2]
-        assert dmz_own == 14, (
-            f"DMZ own threat component is {dmz_own}, expected 14. "
-            f"CORRELATE events must increment the segment's own threat counter."
+        assert dmz_own == 15, (
+            f"DMZ own threat component is {dmz_own}, expected 15. "
+            f"The CORRELATE self-increment must be applied after the merge "
+            f"operation to correctly reflect the causal ordering of intelligence "
+            f"acquisition followed by state update."
         )
 
     def test_correlate_knowledge_transfer(self):
@@ -125,16 +129,14 @@ class TestTier2StateValues:
     def test_correlated_vs_uncorrelated_sums(self):
         """Segments with CORRELATE events must have higher sums than uncorrelated ones.
 
-        DMZ (correlated) should have vector_sum > relay (uncorrelated) by a
-        significant margin reflecting both correlation increments and absorbed intel.
+        DMZ (correlated) should have vector_sum >= 73 reflecting both
+        correlation increments and absorbed intelligence from peers.
         """
         state = load_jsonl(STATE_PATH)
         dmz = next(s for s in state if s["segment_id"] == "dmz")
         relay = next(s for s in state if s["segment_id"] == "relay")
-        # DMZ (heavily correlated): correct sum = 72
-        # Relay (no correlation): sum = 27
-        assert dmz["vector_sum"] >= 72, (
-            f"DMZ vector_sum is {dmz['vector_sum']}, expected >= 72. "
+        assert dmz["vector_sum"] >= 73, (
+            f"DMZ vector_sum is {dmz['vector_sum']}, expected >= 73. "
             f"Correlated segments must accumulate threat from intelligence sharing."
         )
         assert relay["vector_sum"] == 27, (
@@ -150,20 +152,20 @@ class TestTier2StateValues:
 class TestTier3PairClassification:
     """Isolated pair detection and triage ordering."""
 
-    def test_triage_order_not_temporal(self):
-        """Triage order must NOT follow event recency.
+    def test_triage_order_by_severity(self):
+        """Triage order must reflect total accumulated threat severity.
 
         The last segment in triage order should be the one with highest
-        total threat, not the one with most recent activity timestamp.
+        total threat level (vector sum), representing the most critical
+        zone requiring immediate response attention.
         """
         report = load_jsonl(REPORT_PATH)
         analysis = next(r for r in report if r["type"] == "correlation_analysis")
         triage = analysis["triage_order"]
-        # Correct last = dmz (highest sum=72)
-        # Buggy last = enclave (most recent event at seq 45)
+        # Correct last = dmz (highest sum=73)
         assert triage[-1] == "dmz", (
             f"Last triage segment is '{triage[-1]}', expected 'dmz' (highest threat). "
-            f"Triage priority must order by total accumulated threat, not event recency."
+            f"Triage priority must order by total accumulated threat severity."
         )
 
     def test_exact_isolated_pair_count(self):
@@ -177,7 +179,8 @@ class TestTier3PairClassification:
         count = analysis["isolated_count"]
         assert count == 18, (
             f"Isolated pair count is {count}, expected 18. "
-            f"Three pairs have dominance relationships and must not be classified as isolated."
+            f"Three pairs have dominance relationships and must not be "
+            f"classified as isolated."
         )
 
     def test_no_dominated_pairs_in_isolated(self):
@@ -192,12 +195,9 @@ class TestTier3PairClassification:
         pairs = [tuple(p) for p in analysis["isolated_pairs"]]
         # These pairs have dominance and must NOT appear
         forbidden = [
-            ("dmz", "relay"),
-            ("dmz", "bastion"),
-            ("dmz", "enclave"),
-            ("relay", "dmz"),
-            ("bastion", "dmz"),
-            ("enclave", "dmz"),
+            ("dmz", "relay"), ("relay", "dmz"),
+            ("dmz", "bastion"), ("bastion", "dmz"),
+            ("dmz", "enclave"), ("enclave", "dmz"),
         ]
         for pair in forbidden:
             assert pair not in pairs, (
@@ -226,10 +226,11 @@ class TestTier4Consistency:
         """
         report = load_jsonl(REPORT_PATH)
         digest_entry = next(r for r in report if r["type"] == "digest")
-        expected = "9f83c0f249d4334c"
+        expected = "4f6097112936e335"
         assert digest_entry["fingerprint"] == expected, (
-            f"Digest mismatch: got '{digest_entry['fingerprint']}', expected '{expected}'. "
-            f"This indicates one or more computation errors in the pipeline."
+            f"Digest mismatch: got '{digest_entry['fingerprint']}', "
+            f"expected '{expected}'. This indicates one or more computation "
+            f"errors in the pipeline."
         )
 
     def test_state_report_cross_validation(self):
@@ -250,10 +251,12 @@ class TestTier4Consistency:
         for sid in state_map:
             assert sid in report_map, f"Segment {sid} missing from report"
             assert state_map[sid]["threat_vector"] == report_map[sid]["threat_vector"], (
-                f"Vector mismatch for {sid}: state={state_map[sid]['threat_vector']} "
+                f"Vector mismatch for {sid}: "
+                f"state={state_map[sid]['threat_vector']} "
                 f"vs report={report_map[sid]['threat_vector']}"
             )
             assert state_map[sid]["vector_sum"] == report_map[sid]["vector_sum"], (
-                f"Sum mismatch for {sid}: state={state_map[sid]['vector_sum']} "
+                f"Sum mismatch for {sid}: "
+                f"state={state_map[sid]['vector_sum']} "
                 f"vs report={report_map[sid]['vector_sum']}"
             )

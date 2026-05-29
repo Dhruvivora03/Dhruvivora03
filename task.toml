@@ -3,18 +3,18 @@ author_email = "dhruvpatel2284@gmail.com"
 category = "Cybersecurity"
 difficulty = "hard"
 tags = ["threat-intelligence", "network-security", "intrusion-detection", "vector-correlation", "incident-response"]
-difficulty_explanation = "Requires understanding of vector-based threat tracking, partial order theory (incomparability vs equality in threat dominance), and the distinction between passive intelligence sharing and active adversarial exposure. Three interdependent bugs across two files with misleading comments defending the buggy behavior."
-solution_explanation = "Fix 1: Add self._threat[self.segment_id] += 1 after the CORRELATE merge loop in threat_accumulator.py. Fix 2: Replace equality check (bidirectional leq) with incomparability check (neither dominates) in correlation_analyzer.py. Fix 3: Replace temporal recency sort with vector-sum sort in compute_triage_priority."
+difficulty_explanation = "Requires understanding of vector-clock-style threat tracking with subtle timing semantics (pre vs post increment during merge), lattice-theoretic containment classification with swapped labels buried in a multi-function pipeline, and a composite scoring metric that must be replaced with a simpler aggregate. Three interdependent bugs across two files with authoritative comments defending each design choice."
+solution_explanation = "Fix 1: Move self._threat[self.segment_id] += 1 from before the merge loop to after it in threat_accumulator.py. Fix 2: Swap PAIR_INDEPENDENT and PAIR_CONVERGED return values in _classify_containment_relationship in correlation_analyzer.py. Fix 3: Replace composite _compute_threat_severity_score with simple sum(vectors[s]) sort in compute_triage_priority."
 verification_explanation = "14 tests in 4 tiers: 6 structural (always pass), 3 state-value (need Fix 1), 3 pair-classification (need Fixes 2+3), 2 full-consistency (need all fixes). NOP gives 8 pass / 6 fail, Oracle gives 14 pass / 0 fail."
 expert_time_estimate_hours = 2.5
 
 [task]
 name = "threat-intel-repair"
-description = "Debug a network security threat correlation engine where segments track threat vectors through PROBE, BREACH, and CORRELATE events. The threat accumulator, correlation analyzer, and report writer contain subtle bugs in vector increment logic, isolation predicate, and triage ordering."
+description = "Debug a network security threat correlation engine where segments track threat vectors through PROBE, BREACH, and CORRELATE events. The threat accumulator has a timing bug in its self-increment during correlation, the correlation analyzer has swapped classification labels in a multi-phase lattice analysis pipeline, and the triage function uses the wrong severity metric."
 
 [task.difficulty]
 level = "hard"
-reasoning = "Three bugs span two files with cascading effects. Bug 2 (equality vs incomparability) requires deep understanding of partial order semantics applied to threat dominance. Misleading comments actively defend incorrect behavior as sound security engineering decisions."
+reasoning = "Three bugs span two files with cascading effects. Bug 1 requires understanding pre/post increment timing in vector clock merges. Bug 2 is a label swap buried inside a multi-function classification pipeline with 7 helper functions. Bug 3 replaces a plausible composite metric with a simpler but correct aggregate. Authoritative academic references in comments defend incorrect choices."
 
 [task.runtime]
 entrypoint = "python3 /app/runtime/run_correlation.py"

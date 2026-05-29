@@ -11,9 +11,9 @@ The correlation pipeline reads an intrusion event log, processes events through 
 The correlation runs without errors but produces incorrect results:
 
 - The threat assessment shows **0 isolated pairs** when correlation analysis expects **18**
-- The triage ordering appears to follow temporal event sequence rather than threat severity priority
-- DMZ's own threat component reports **13** but integration of its event history (4 PROBE + 2 BREACH + 2 CORRELATE) suggests it should be **14**
-- The report digest is `b9436d2782dc0abd` instead of the expected `9f83c0f249d4334c`
+- The triage ordering does not reflect total accumulated threat severity
+- DMZ's own threat component reports **14** but integration of its event history (4 PROBE + 2 BREACH + 2 CORRELATE) should yield **15**
+- The report digest is `73f11ba9384eda64` instead of the expected `4f6097112936e335`
 
 ## File Layout
 
@@ -44,19 +44,19 @@ The correlation runs without errors but produces incorrect results:
 
 ### segment_state.jsonl
 ```json
-{"segment_id": "dmz", "threat_vector": [10, 10, 14, 10, 9, 9, 10], "vector_sum": 72}
+{"segment_id": "dmz", "threat_vector": [10, 10, 15, 10, 9, 9, 10], "vector_sum": 73}
 ```
 
 ### threat_assessment.jsonl
 ```json
-{"type": "segment_state", "segment_id": "dmz", "threat_vector": [...], "vector_sum": 72}
+{"type": "segment_state", "segment_id": "dmz", "threat_vector": [...], "vector_sum": 73}
 {"type": "correlation_analysis", "isolated_pairs": [...], "isolated_count": 18, "triage_order": [...]}
-{"type": "digest", "fingerprint": "9f83c0f249d4334c"}
+{"type": "digest", "fingerprint": "4f6097112936e335"}
 ```
 
 ## Expected Correct Values
 
-- DMZ own threat component: **14**
+- DMZ own threat component: **15**
 - Total isolated pairs: **18** (out of 21 possible)
-- Triage order last: **dmz** (highest threat sum)
-- Report digest: `9f83c0f249d4334c`
+- Triage order last: **dmz** (highest threat sum of 73)
+- Report digest: `4f6097112936e335`
