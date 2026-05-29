@@ -1,3 +1,4 @@
 #!/bin/bash
-cd /app
-python3 /solution/repair_spatial_index.py
+set -e
+python3 /app/runtime/run_bci.py
+python3 /solution/repair_eeg_coherence.py

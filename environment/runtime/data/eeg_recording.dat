@@ -1,0 +1,50 @@
+; EEG Brainwave Coherence — Multi-Electrode Recording Session
+; Brain-Computer Interface calibration for 7 electrode channels
+; Format: SEQ -> CHANNEL_ID -> SIGNAL_TYPE -> DETAILS
+; BASE_POWER = 3 for all channels at initialization
+; PULSE adds +1, SPIKE adds +2, ENTRAIN synchronizes spectral knowledge
+001 -> electrode_fp1 -> PULSE -> delta=1
+002 -> electrode_fp2 -> SPIKE -> delta=2
+003 -> electrode_c3 -> PULSE -> delta=1
+004 -> electrode_c4 -> PULSE -> delta=1
+005 -> electrode_p3 -> SPIKE -> delta=2
+006 -> electrode_o1 -> PULSE -> delta=1
+007 -> electrode_o2 -> PULSE -> delta=1
+008 -> electrode_fp1 -> SPIKE -> delta=2
+009 -> electrode_fp2 -> PULSE -> delta=1
+010 -> electrode_c3 -> SPIKE -> delta=2
+011 -> electrode_fp1 -> PULSE -> delta=1
+012 -> electrode_c4 -> SPIKE -> delta=2
+013 -> electrode_p3 -> PULSE -> delta=1
+014 -> electrode_o1 -> SPIKE -> delta=2
+015 -> electrode_o2 -> SPIKE -> delta=2
+016 -> electrode_fp1 -> ENTRAIN -> peer_state=electrode_fp1:7;electrode_fp2:6;electrode_c3:6;electrode_c4:6;electrode_p3:6;electrode_o1:6;electrode_o2:6
+017 -> electrode_fp2 -> PULSE -> delta=1
+018 -> electrode_c3 -> PULSE -> delta=1
+019 -> electrode_fp1 -> PULSE -> delta=1
+020 -> electrode_c4 -> PULSE -> delta=1
+021 -> electrode_p3 -> PULSE -> delta=1
+022 -> electrode_o1 -> PULSE -> delta=1
+023 -> electrode_o2 -> PULSE -> delta=1
+024 -> electrode_fp2 -> ENTRAIN -> peer_state=electrode_fp1:7;electrode_fp2:7;electrode_c3:6;electrode_c4:6;electrode_p3:6;electrode_o1:6;electrode_o2:6
+025 -> electrode_fp1 -> SPIKE -> delta=2
+026 -> electrode_c3 -> PULSE -> delta=1
+027 -> electrode_c4 -> SPIKE -> delta=2
+028 -> electrode_p3 -> SPIKE -> delta=2
+029 -> electrode_o1 -> PULSE -> delta=1
+030 -> electrode_o2 -> PULSE -> delta=1
+031 -> electrode_fp1 -> PULSE -> delta=1
+032 -> electrode_fp2 -> PULSE -> delta=1
+033 -> electrode_c3 -> ENTRAIN -> peer_state=electrode_fp1:7;electrode_fp2:7;electrode_c3:8;electrode_c4:6;electrode_p3:6;electrode_o1:6;electrode_o2:6
+034 -> electrode_c4 -> PULSE -> delta=1
+035 -> electrode_p3 -> PULSE -> delta=1
+036 -> electrode_fp1 -> PULSE -> delta=1
+037 -> electrode_o1 -> SPIKE -> delta=2
+038 -> electrode_o2 -> SPIKE -> delta=2
+039 -> electrode_fp2 -> SPIKE -> delta=2
+040 -> electrode_c4 -> ENTRAIN -> peer_state=electrode_fp1:7;electrode_fp2:7;electrode_c3:8;electrode_c4:9;electrode_p3:6;electrode_o1:6;electrode_o2:6
+041 -> electrode_fp1 -> SPIKE -> delta=2
+042 -> electrode_p3 -> PULSE -> delta=1
+043 -> electrode_o1 -> PULSE -> delta=1
+044 -> electrode_o2 -> PULSE -> delta=1
+045 -> electrode_fp2 -> PULSE -> delta=1
