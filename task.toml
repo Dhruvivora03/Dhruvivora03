@@ -1,0 +1,36 @@
+author_name = "Dhruvkumar Patel"
+author_email = "dhruvpatel2284@gmail.com"
+category = "Programming Languages / Compilers / Parsers"
+difficulty = "hard"
+tags = ["abstract-interpretation", "widening-operator", "dataflow-analysis", "lattice-convergence", "static-analysis"]
+difficulty_explanation = "Bug 1 requires two coordinated changes: removing a plausible guard (continue statement) AND adding a missing increment. Bug 2 requires distinguishing equality from incomparability in a partial order. Bug 3 requires identifying that lattice spread is the wrong metric for worklist priority. The continue statement has a convincing comment about preventing 'circular self-reinforcement' that misdirects debugging."
+solution_explanation = "Fix 1: Remove the 'if point == self.point_id: continue' guard AND add self._height[self.point_id] += 1 after the merge loop. Fix 2: Replace symmetric boundedness with incomparability (neither dominates). Fix 3: Replace spread sort with vector-sum sort."
+verification_explanation = "14 tests in 4 tiers: 6 structural (always pass), 3 state-value (need Fix 1), 3 convergence (need Fixes 2+3), 2 consistency (need all). NOP=8pass/6fail, Oracle=14pass/0fail."
+expert_time_estimate_hours = 2.5
+
+[task]
+name = "dataflow-widening-repair"
+description = "Debug an abstract interpretation engine computing widened fixed points over a 7-node control flow graph. The lattice height tracker incorrectly guards its own component during join operations, the convergence detector confuses lattice equality with independence, and the worklist scheduler uses the wrong priority metric."
+
+[task.difficulty]
+level = "hard"
+reasoning = "Bug 1 requires a two-part fix (remove guard + add increment) defended by a convincing anti-self-amplification comment. Bug 2 requires partial order reasoning. Bug 3 uses a plausible alternative metric."
+
+[task.runtime]
+entrypoint = "python3 /app/runtime/run_analysis.py"
+language = "python"
+dependencies = "stdlib-only"
+
+[task.validator]
+command = "bash tests/test.sh"
+description = "14 pytest tests across 4 tiers validating lattice computation, convergence detection, worklist ordering, and digest integrity."
+
+[task.repair]
+command = "bash solution/solve.sh"
+description = "Fixes bugs in lattice_engine.py and fixpoint_analyzer.py, then regenerates outputs."
+
+[task.resources]
+timeout = 300
+cpu = 2
+memory = "2GB"
+disk = "1GB"
