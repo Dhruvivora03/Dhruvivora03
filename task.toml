@@ -1,0 +1,36 @@
+author_name = "Dhruvkumar Patel"
+author_email = "dhruvpatel2284@gmail.com"
+category = "Graphics / Image / Video"
+difficulty = "hard"
+tags = ["ray-marching", "signed-distance-field", "csg-rendering", "occlusion-culling", "sphere-tracing"]
+difficulty_explanation = "Bug 1 requires THREE coordinated changes across two code locations: (a) remove the 'continue' guard that skips own component during merge, (b) set the _BLEND_SELF_ADVANCE feature flag to True or remove the conditional, (c) understand that both the merge inclusion AND the self-advance are needed because the BLEND peer state carries a higher value for the primitive's own component that must be absorbed before incrementing. A partial fix (flag-only or continue-only) produces wrong output. Bug 2 requires distinguishing vector equality from incomparability. Bug 3 requires identifying that SDF depth range is the wrong metric for render priority."
+solution_explanation = "Fix 1: Remove 'if prim == self.prim_id: continue' AND set _BLEND_SELF_ADVANCE = True (or remove the conditional). Fix 2: Replace symmetric boundedness with incomparability (neither dominates). Fix 3: Replace depth-range sort with vector-sum sort."
+verification_explanation = "14 tests in 4 tiers: 6 structural (always pass), 3 state-value (need Fix 1), 3 pair-classification (need Fixes 2+3), 2 full-consistency (need all fixes). NOP=8pass/6fail, Oracle=14pass/0fail."
+expert_time_estimate_hours = 3.0
+
+[task]
+name = "sdf-compositor-repair"
+description = "Debug an SDF ray marching compositor rendering 7 CSG primitives. The distance accumulator has a Lipschitz-continuity guard preventing own-component merging AND a disabled feature flag gating the self-advance increment — both must be fixed together. The occlusion analyzer uses vector equality instead of incomparability, and the render queue uses the wrong depth metric."
+
+[task.difficulty]
+level = "hard"
+reasoning = "Bug 1 is a multi-part fix requiring changes at two separate code locations (continue guard + feature flag). Partial fixes produce incorrect output because the BLEND peer data carries a value for the primitive's own component that must be absorbed via merge before the increment fires. This creates a debugging trap where fixing only one part still fails tests."
+
+[task.runtime]
+entrypoint = "python3 /app/runtime/run_compositor.py"
+language = "python"
+dependencies = "stdlib-only"
+
+[task.validator]
+command = "bash tests/test.sh"
+description = "14 pytest tests across 4 tiers validating SDF computation, occlusion detection, render ordering, and digest integrity."
+
+[task.repair]
+command = "bash solution/solve.sh"
+description = "Fixes bugs in sdf_accumulator.py and occlusion_analyzer.py, then regenerates outputs."
+
+[task.resources]
+timeout = 300
+cpu = 2
+memory = "2GB"
+disk = "1GB"
