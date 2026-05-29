@@ -1,0 +1,36 @@
+author_name = "Dhruvkumar Patel"
+author_email = "dhruvpatel2284@gmail.com"
+category = "Programming Languages / Compilers / Parsers"
+difficulty = "hard"
+tags = ["abstract-interpretation", "dataflow-analysis", "fixed-point", "lattice-theory", "compiler-optimization"]
+difficulty_explanation = "Requires understanding lattice-theoretic fixed-point semantics, the distinction between passive state merging and active computation in abstract interpretation, and partial order incomparability for convergence detection. Three interdependent bugs across two files with comments defending each choice using standard compiler analysis terminology."
+solution_explanation = "Fix 1: Add self._height[self.point_id] += 1 after the JOIN merge loop in lattice_engine.py. Fix 2: Replace symmetric boundedness (equality) with incomparability (neither dominates) in fixpoint_analyzer.py. Fix 3: Replace activity recency sort with vector-sum sort in compute_worklist_priority."
+verification_explanation = "14 tests in 4 tiers: 6 structural (always pass), 3 state-value (need Fix 1), 3 convergence (need Fixes 2+3), 2 consistency (need all). NOP=8pass/6fail, Oracle=14pass/0fail."
+expert_time_estimate_hours = 2.5
+
+[task]
+name = "fixpoint-lattice-repair"
+description = "Debug an abstract interpretation engine that computes fixed points over a CFG. The lattice engine, convergence analyzer, and report writer have bugs in JOIN height tracking, convergence predicate semantics, and worklist priority ordering."
+
+[task.difficulty]
+level = "hard"
+reasoning = "Three bugs span two files. Bug 2 requires reasoning about partial order incomparability vs equality in lattice theory. Comments use standard abstract interpretation terminology to defend incorrect behavior."
+
+[task.runtime]
+entrypoint = "python3 /app/runtime/run_analysis.py"
+language = "python"
+dependencies = "stdlib-only"
+
+[task.validator]
+command = "bash tests/test.sh"
+description = "14 pytest tests across 4 tiers."
+
+[task.repair]
+command = "bash solution/solve.sh"
+description = "Fixes bugs and regenerates outputs."
+
+[task.resources]
+timeout = 300
+cpu = 2
+memory = "2GB"
+disk = "1GB"
