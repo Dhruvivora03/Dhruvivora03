@@ -1,106 +1,83 @@
-# Spatial Index Repair — Debugging Task
+# GPU Shader Pipeline Profiler — Debugging Task
 
 ## Overview
 
-A geospatial indexing engine ingests point location data from multiple feed sources, constructs an R-tree spatial index, and executes range and k-nearest-neighbor (KNN) queries against the indexed data. The system processes feeds in configurable batches and produces JSON output containing query results and index structure statistics.
+A GPU shader pipeline profiler monitors 7 shader stages in a rendering pipeline, tracking their accumulated execution cycles through sample ticks, burst measurements, and synchronization events. The profiler reads a trace log, builds per-shader cycle vectors, classifies pipeline stage relationships, and generates a report with scheduling priority for workload redistribution.
 
-## System Environment
+The profiler is producing incorrect results. Several output values do not match expected values from validated reference runs.
 
-- **Language**: Python 3.11
-- **Runtime**: `/app/runtime/` (source, config, data, output)
-- **Global system-wide tooling**: `uv` and `pytest` are available
+## Observed Symptoms
 
-## Processing Stages
+1. **Cycle counts too low**: Shader vertex should have own cycles of **15** after all events, but the profiler reports **14**. Similarly, shader fragment reports 11 instead of expected 12, geometry reports 8 instead of 9, and tessctl reports 10 instead of 11.
 
-1. **Feed Loading** — Reads CSV feed files (sensor, landmark, zone) based on the active feeds configuration. Each feed provides geospatial point records with coordinates, labels, timestamps, and per-feed insertion order.
+2. **No disjoint pairs detected**: The pipeline report shows 0 disjoint shader pairs, but the expected count is **21** (all pairs should be disjoint given the pipeline stage isolation).
 
-2. **Index Construction** — Builds an R-tree spatial index from the loaded records. The tree uses rtree-specific parameters from the `[indexing.rtree]` configuration section for leaf node capacity and splitting behavior.
+3. **Wrong scheduling priority**: The priority list starts with `shader_geometry` and ends with `shader_fragment`, but correct ordering should start with a low-cycle shader (`shader_compute`) and end with a high-cycle shader (`shader_vertex`).
 
-3. **Query Execution** — Runs range queries (bounding box containment) and KNN queries (nearest neighbors by Euclidean distance). KNN results are sorted deterministically by `(distance, feed_id, insert_order)` to handle ties.
+4. **Digest mismatch**: Expected digest is `58116a4dfeeaa55e`, profiler produces `3218f2f9f54ead88`.
 
-4. **Batch Statistics** — Processes range query results in configurable batch windows and computes per-feed point counts. The final statistics represent the counts from the last processing window.
+## File Layout
 
-5. **Output Generation** — Writes query results and index statistics to JSON files in the output directory.
+All runtime files are located at `/app/runtime/`:
 
-## Problem
+```
+/app/runtime/
+├── data/
+│   └── profile_log.dat        — Profiling trace (input data)
+├── log_reader.py              — Parses trace log into events
+├── cycle_counter.py           — Builds cycle vectors per shader
+├── pipeline_analyzer.py       — Classifies pairs and computes priority
+├── profiling_report.py        — Generates final JSON report
+└── run_profiler.py            — Orchestrates the pipeline
+```
 
-The engine runs without errors but produces incorrect results:
+## Files Known to Be Correct
 
-- Some feed records appear to be missing from the index entirely
-- The R-tree structure has unexpected properties (no node splitting despite many records)
-- Batch statistics report inflated counts that exceed the actual number of records
-- KNN query results show non-deterministic ordering for equidistant points
+- `/app/runtime/log_reader.py` — Parsing logic is verified correct
+- `/app/runtime/run_profiler.py` — Orchestration logic is verified correct
+- `/app/runtime/data/profile_log.dat` — Input data is verified correct
 
-## Expected Correct Output
+## Files Containing Bugs
 
-When all defects are fixed:
-
-- All 55 records (20 sensor + 18 landmark + 17 zone) should be indexed
-- The R-tree should use a leaf capacity of 8, producing a tree of depth 2 with 9 splits
-- Batch window statistics should report per-feed counts from the final window only: sensor=20, landmark=18, zone=17
-- KNN results should be deterministically ordered by (distance, feed_id, insert_order)
+- `/app/runtime/cycle_counter.py` — Cycle tracking has an error
+- `/app/runtime/pipeline_analyzer.py` — Pipeline analysis has errors
+- `/app/runtime/profiling_report.py` — Report generation inherits analysis errors
 
 ## Output Schema
 
-### `/app/runtime/output/query_results.json`
+### profiler_state.jsonl
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `range_queries` | list | List of range query result objects |
-| `range_queries[].query_id` | string | Identifier of the range query |
-| `range_queries[].hit_count` | integer | Number of points found in range |
-| `range_queries[].hits` | list | List of hit record objects |
-| `range_queries[].hits[].id` | string | Record identifier |
-| `range_queries[].hits[].feed_id` | string | Source feed name |
-| `range_queries[].hits[].x` | float | X coordinate |
-| `range_queries[].hits[].y` | float | Y coordinate |
-| `range_queries[].hits[].label` | string | Record label |
-| `knn_queries` | list | List of KNN query result objects |
-| `knn_queries[].query_id` | string | Identifier of the KNN query |
-| `knn_queries[].center` | object | Query center point with x, y |
-| `knn_queries[].neighbors` | list | Ordered list of nearest neighbors |
-| `knn_queries[].neighbors[].id` | string | Neighbor record identifier |
-| `knn_queries[].neighbors[].feed_id` | string | Neighbor source feed |
-| `knn_queries[].neighbors[].x` | float | Neighbor X coordinate |
-| `knn_queries[].neighbors[].y` | float | Neighbor Y coordinate |
-| `knn_queries[].neighbors[].label` | string | Neighbor label |
-| `knn_queries[].neighbors[].distance` | float | Euclidean distance from center |
-| `total_records_indexed` | integer | Total number of records in the index |
+One JSON record per line. Shader state records:
+```json
+{"type": "shader_state", "shader_id": "shader_vertex", "cycle_vector": [...], "own_cycles": 15}
+```
 
-### `/app/runtime/output/index_stats.json`
+Event summary record:
+```json
+{"type": "event_summary", "total_events": 45, "per_shader": {"shader_vertex": 9, ...}}
+```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `tree_depth` | integer | Depth of the R-tree structure |
-| `max_leaf_capacity` | integer | Maximum entries per leaf node |
-| `split_count` | integer | Number of node splits during construction |
-| `total_indexed` | integer | Total number of indexed records |
-| `batch_window_stats` | object | Per-feed point counts from final batch window |
-| `batch_window_stats.sensor` | integer | Sensor feed count in final window |
-| `batch_window_stats.landmark` | integer | Landmark feed count in final window |
-| `batch_window_stats.zone` | integer | Zone feed count in final window |
-| `window_feed_summary` | object | Per-feed summary from range query execution |
+### pipeline_report.json
 
-## Key Files
+```json
+{
+  "profiling_summary": {"shader_count": 7, "total_events": 45, "shaders": [...]},
+  "cycle_state": {"shader_vertex": {"vector": [...], "vector_sum": 51}, ...},
+  "pair_classification": {"disjoint_pairs": [...], "coupled_pairs": [...], "disjoint_count": 21, "total_pairs": 21},
+  "scheduling_priority": ["shader_compute", "shader_raytrace", "shader_tesseval", ...],
+  "validation": {"digest": "58116a4dfeeaa55e"}
+}
+```
 
-| File | Purpose |
-|------|---------|
-| `/app/runtime/config.ini` | Configuration with feed list, indexing parameters, and query settings |
-| `/app/runtime/feed_loader.py` | Loads and filters spatial records from CSV feeds |
-| `/app/runtime/rtree_index.py` | R-tree index implementation with insert, range query, and KNN |
-| `/app/runtime/query_engine.py` | Executes queries in batch windows and computes statistics |
-| `/app/runtime/run_spatial.py` | Main entry point orchestrating the full process |
-| `/app/runtime/data/sensor_feed.csv` | Sensor location records (20 entries) |
-| `/app/runtime/data/landmark_feed.csv` | Landmark location records (18 entries) |
-| `/app/runtime/data/zone_feed.csv` | Zone location records (17 entries) |
-| `/app/runtime/data/range_queries.csv` | Range query definitions (5 queries) |
-| `/app/runtime/data/knn_queries.csv` | KNN query definitions (3 queries) |
+## Event Types
 
-## Your Task
+- **SAMPLE**: Single-frame profiling tick, adds +1 to shader's own cycles
+- **BURST**: Multi-frame profiling burst, adds +2 to shader's own cycles
+- **SYNC**: Synchronization with adjacent pipeline stage, propagates cycle knowledge
 
-Identify and fix defects in the runtime source files under `/app/runtime/`. The data files and query definitions are correct — the bugs are in the Python source code and its interaction with the configuration file. Focus on:
+## Constraints
 
-- How feed names are parsed from the configuration
-- Which configuration section provides indexing parameters
-- How batch window statistics are aggregated across windows
-- How KNN results handle distance ties in sorting
+- All shaders start with BASE_CYCLES = 3
+- There are 7 shader stages with 45 total profiling events
+- Shaders that sync: vertex, fragment, geometry, tessctl (1 sync each)
+- Shaders that never sync: compute, raytrace, tesseval

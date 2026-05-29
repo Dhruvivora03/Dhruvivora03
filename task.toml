@@ -1,34 +1,33 @@
 author_name = "Dhruvkumar Patel"
 author_email = "dhruvpatel2284@gmail.com"
-category = "spatial_indexing"
+category = "Graphics / Image / Video"
 difficulty = "hard"
-tags = ["spatial-indexing", "rtree", "query-engine", "geospatial", "data-structures"]
-
-difficulty_explanation = "Requires identifying four interacting bugs across three source files: a whitespace parsing issue in feed configuration, a wrong config section reference for tree parameters, an accumulation logic error in batch statistics, and a missing sort key component for deterministic KNN ordering. The bugs are subtle and their effects compound."
-solution_explanation = "Fix feed_loader.py to strip whitespace from comma-split active feeds list, fix rtree_index.py to read max_leaf_capacity from [indexing.rtree] instead of [indexing], fix query_engine.py to use assignment instead of accumulation for per-window batch statistics, and fix rtree_index.py KNN sort key to include feed_id between distance and insert_order."
-verification_explanation = "Tests validate output correctness at multiple levels: basic structure, individual bug effects (zone records present, correct leaf capacity, correct batch stats), and combined correctness (KNN ordering, total record count, full range query accuracy). All 10 tests must pass."
-expert_time_estimate_hours = 3.0
+tags = ["gpu-profiling", "shader-pipeline", "vector-math", "partial-orders", "graphics-programming"]
+difficulty_explanation = "Requires understanding vector partial orders in a GPU profiling context, distinguishing equality from incomparability in component-wise comparisons, and recognizing that synchronization barriers consume execution cycles. Misleading comments actively steer toward the buggy interpretation."
+solution_explanation = "Three bugs across two files: (1) cycle_counter.py missing self-increment after SYNC merge, (2) pipeline_analyzer.py checking vector equality instead of incomparability for disjointness, (3) pipeline_analyzer.py sorting by temporal recency instead of vector sum for priority."
+verification_explanation = "14 tests in 4 tiers: 6 structural (always pass), 3 cycle state (need bug 1 fix), 3 pipeline classification (need bugs 2+3 fix), 2 consistency (need all fixes). NOP yields 8 pass / 6 fail. Oracle yields 14 pass / 0 fail."
+expert_time_estimate_hours = 2.5
 
 [task]
-name = "spatial-index-repair"
-description = "Debug a spatial indexing engine that builds an R-tree from geospatial feed data and executes range and k-nearest-neighbor queries. The system has four subtle defects causing incorrect feed filtering, degenerate tree structure, inflated statistics, and non-deterministic query ordering."
+name = "shader-profiler-repair"
+description = "Debug a GPU shader pipeline profiler that incorrectly tracks execution cycles during synchronization barriers, misclassifies stage disjointness between shader programs, and uses wrong priority ordering for workload scheduling."
 
 [task.difficulty]
 level = "hard"
-reasoning = "Four interacting bugs across multiple files require understanding of configuration parsing, tree data structures, batch processing semantics, and sort stability. Bugs are not indicated by comments or obvious code smells."
+reasoning = "The bugs involve subtle mathematical distinctions (equality vs incomparability in partial orders) masked by authoritative misleading comments about GPU pipeline behavior. The SYNC self-increment bug requires understanding that synchronization barriers are active events consuming GPU cycles."
 
 [task.runtime]
-entrypoint = "python3 -m runtime.run_spatial"
+entrypoint = "python3 /app/runtime/run_profiler.py"
 language = "python"
 dependencies = "stdlib-only"
 
 [task.validator]
 command = "bash tests/test.sh"
-description = "Runs the spatial indexing engine and validates query results and index statistics against expected correct values using pytest."
+description = "Runs 14 pytest tests across 4 difficulty tiers validating cycle vectors, stage classification, priority ordering, and end-to-end digest consistency."
 
 [task.repair]
 command = "bash solution/solve.sh"
-description = "Patches four bugs in the runtime source files and re-runs the engine to produce correct output."
+description = "Fixes cycle self-increment after SYNC, replaces equality with incomparability for stage disjointness, and corrects priority to use vector sum instead of temporal recency."
 
 [task.resources]
 timeout = 300

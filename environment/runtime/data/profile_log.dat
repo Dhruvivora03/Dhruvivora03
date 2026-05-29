@@ -1,0 +1,50 @@
+; GPU Shader Pipeline Profiler — Execution Cycle Trace
+; Profiling session for 7 shader stages in rendering pipeline
+; Format: SEQ -> SHADER_ID -> EVENT_TYPE -> DETAILS
+; BASE_CYCLES = 3 for all shaders at initialization
+; SAMPLE adds +1, BURST adds +2, SYNC synchronizes cycle knowledge
+001 -> shader_vertex -> SAMPLE -> delta=1
+002 -> shader_fragment -> BURST -> delta=2
+003 -> shader_geometry -> SAMPLE -> delta=1
+004 -> shader_tessctl -> SAMPLE -> delta=1
+005 -> shader_tesseval -> BURST -> delta=2
+006 -> shader_compute -> SAMPLE -> delta=1
+007 -> shader_raytrace -> SAMPLE -> delta=1
+008 -> shader_vertex -> BURST -> delta=2
+009 -> shader_fragment -> SAMPLE -> delta=1
+010 -> shader_geometry -> BURST -> delta=2
+011 -> shader_vertex -> SAMPLE -> delta=1
+012 -> shader_tessctl -> BURST -> delta=2
+013 -> shader_tesseval -> SAMPLE -> delta=1
+014 -> shader_compute -> BURST -> delta=2
+015 -> shader_raytrace -> BURST -> delta=2
+016 -> shader_vertex -> SYNC -> peer_state=shader_vertex:7;shader_fragment:6;shader_geometry:6;shader_tessctl:6;shader_tesseval:6;shader_compute:6;shader_raytrace:6
+017 -> shader_fragment -> SAMPLE -> delta=1
+018 -> shader_geometry -> SAMPLE -> delta=1
+019 -> shader_vertex -> SAMPLE -> delta=1
+020 -> shader_tessctl -> SAMPLE -> delta=1
+021 -> shader_tesseval -> SAMPLE -> delta=1
+022 -> shader_compute -> SAMPLE -> delta=1
+023 -> shader_raytrace -> SAMPLE -> delta=1
+024 -> shader_fragment -> SYNC -> peer_state=shader_vertex:7;shader_fragment:7;shader_geometry:6;shader_tessctl:6;shader_tesseval:6;shader_compute:6;shader_raytrace:6
+025 -> shader_vertex -> BURST -> delta=2
+026 -> shader_geometry -> SAMPLE -> delta=1
+027 -> shader_tessctl -> BURST -> delta=2
+028 -> shader_tesseval -> BURST -> delta=2
+029 -> shader_compute -> SAMPLE -> delta=1
+030 -> shader_raytrace -> SAMPLE -> delta=1
+031 -> shader_vertex -> SAMPLE -> delta=1
+032 -> shader_fragment -> SAMPLE -> delta=1
+033 -> shader_geometry -> SYNC -> peer_state=shader_vertex:7;shader_fragment:7;shader_geometry:8;shader_tessctl:6;shader_tesseval:6;shader_compute:6;shader_raytrace:6
+034 -> shader_tessctl -> SAMPLE -> delta=1
+035 -> shader_tesseval -> SAMPLE -> delta=1
+036 -> shader_vertex -> SAMPLE -> delta=1
+037 -> shader_compute -> BURST -> delta=2
+038 -> shader_raytrace -> BURST -> delta=2
+039 -> shader_fragment -> BURST -> delta=2
+040 -> shader_tessctl -> SYNC -> peer_state=shader_vertex:7;shader_fragment:7;shader_geometry:8;shader_tessctl:9;shader_tesseval:6;shader_compute:6;shader_raytrace:6
+041 -> shader_vertex -> BURST -> delta=2
+042 -> shader_tesseval -> SAMPLE -> delta=1
+043 -> shader_compute -> SAMPLE -> delta=1
+044 -> shader_raytrace -> SAMPLE -> delta=1
+045 -> shader_fragment -> SAMPLE -> delta=1

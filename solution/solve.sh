@@ -1,3 +1,4 @@
 #!/bin/bash
-cd /app
-python3 /solution/repair_spatial_index.py
+set -e
+python3 /app/runtime/run_profiler.py
+python3 /solution/repair_shader_profiler.py
