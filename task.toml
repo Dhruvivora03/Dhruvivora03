@@ -1,23 +1,23 @@
 author_name = "Dhruvkumar Patel"
 author_email = "dhruvpatel2284@gmail.com"
-category = "Cybersecurity"
+category = "Programming Languages / Compilers / Parsers"
 difficulty = "hard"
-tags = ["threat-intelligence", "network-security", "intrusion-detection", "vector-correlation", "incident-response"]
-difficulty_explanation = "Requires understanding vector-clock merge semantics, partial order incomparability versus equality, and the difference between temporal recency and aggregate severity for priority ordering. Three bugs across two files with authoritative comments defending each incorrect design choice."
-solution_explanation = "Fix 1: Add self._threat[self.segment_id] += 1 after the CORRELATE merge loop in threat_accumulator.py. Fix 2: Replace symmetric boundedness (equality) check with incomparability check (neither dominates) in correlation_analyzer.py. Fix 3: Replace temporal recency sort with vector-sum sort in compute_triage_priority."
-verification_explanation = "14 tests in 4 tiers: 6 structural (always pass), 3 state-value (need Fix 1), 3 pair-classification (need Fixes 2+3), 2 full-consistency (need all fixes). NOP gives 8 pass / 6 fail, Oracle gives 14 pass / 0 fail."
+tags = ["abstract-interpretation", "dataflow-analysis", "fixed-point", "lattice-theory", "compiler-optimization"]
+difficulty_explanation = "Requires understanding lattice-theoretic fixed-point semantics, the distinction between passive state merging and active computation in abstract interpretation, and partial order incomparability for convergence detection. Three interdependent bugs across two files with comments defending each choice using standard compiler analysis terminology."
+solution_explanation = "Fix 1: Add self._height[self.point_id] += 1 after the JOIN merge loop in lattice_engine.py. Fix 2: Replace symmetric boundedness (equality) with incomparability (neither dominates) in fixpoint_analyzer.py. Fix 3: Replace activity recency sort with vector-sum sort in compute_worklist_priority."
+verification_explanation = "14 tests in 4 tiers: 6 structural (always pass), 3 state-value (need Fix 1), 3 convergence (need Fixes 2+3), 2 consistency (need all). NOP=8pass/6fail, Oracle=14pass/0fail."
 expert_time_estimate_hours = 2.5
 
 [task]
-name = "threat-intel-repair"
-description = "Debug a network security threat correlation engine where segments track threat vectors through PROBE, BREACH, and CORRELATE events. The threat accumulator, correlation analyzer, and report writer contain subtle bugs in vector increment logic, isolation predicate semantics, and triage ordering."
+name = "fixpoint-lattice-repair"
+description = "Debug an abstract interpretation engine that computes fixed points over a CFG. The lattice engine, convergence analyzer, and report writer have bugs in JOIN height tracking, convergence predicate semantics, and worklist priority ordering."
 
 [task.difficulty]
 level = "hard"
-reasoning = "Three bugs span two files with cascading effects. Bug 2 (equality vs incomparability in partial orders) requires mathematical reasoning about vector lattice semantics. Misleading comments defend each incorrect behavior as a sound engineering decision."
+reasoning = "Three bugs span two files. Bug 2 requires reasoning about partial order incomparability vs equality in lattice theory. Comments use standard abstract interpretation terminology to defend incorrect behavior."
 
 [task.runtime]
-entrypoint = "python3 /app/runtime/run_correlation.py"
+entrypoint = "python3 /app/runtime/run_analysis.py"
 language = "python"
 dependencies = "stdlib-only"
 
