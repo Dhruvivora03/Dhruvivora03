@@ -1,65 +1,36 @@
-[task]
-slug = "token-flow-repair"
-title = "Token Flow Repair: Dataflow Liveness Analysis Debugging"
-category = "Programming Languages / Compilers / Parsers"
+author_name = "Dhruvkumar Patel"
+author_email = "dhruvpatel2284@gmail.com"
+category = "Compilers, Parsers & Language Internals"
 difficulty = "hard"
+tags = ["dataflow-analysis", "liveness", "interference-graphs", "register-allocation", "graph-coloring"]
+difficulty_explanation = "Requires understanding backward dataflow equations (USE vs DEF subtraction), interference graph semantics (AND vs OR for simultaneous liveness), and graph coloring priority (degree vs definition count). Bugs are defended by authoritative compiler-theory docstrings."
+solution_explanation = "Three fixes: (1) Change transfer function from LiveOut-USE to LiveOut-DEF, (2) Change interference criterion from OR to AND, (3) Change allocation priority from def count to interference degree. Analysis output cascades from fix 2."
+verification_explanation = "14 tests in 4 tiers: 6 structural (always pass), 3 liveness correctness (need fix 1), 3 interference/priority (need fixes 2+3), 2 full consistency (need all fixes). NOP yields 8 pass / 6 fail, oracle yields 14 pass / 0 fail."
+expert_time_estimate_hours = 2.5
 
-[task.description]
-summary = "Debug a backward dataflow liveness analysis system for register-based bytecode. Fix errors in the transfer function, interference criterion, and allocation priority metric."
-domain = "compilers"
-concepts = ["dataflow analysis", "liveness", "interference graphs", "register allocation", "graph coloring"]
+[task]
+name = "token-flow-repair"
+description = "Debug a backward dataflow liveness analysis system for register-based bytecode. Fix errors in the transfer function, interference criterion, and allocation priority metric."
 
-[author]
-name = "Dhruvkumar Patel"
-email = "dhruvpatel2284@gmail.com"
+[task.difficulty]
+level = "hard"
+reasoning = "The bugs exploit compiler-theory reasoning: a plausible but wrong set subtraction in the transfer function (USE instead of DEF), an overly conservative interference check (OR instead of AND) defended as preventing subtle coloring bugs, and a wrong priority metric (def count instead of degree) defended as minimizing spill cost."
 
-[environment]
-dockerfile = "environment/Dockerfile"
-runtime_dir = "runtime/"
-data_dir = "runtime/data/"
+[task.runtime]
+entrypoint = "python3 /app/runtime/run_analysis.py"
+language = "python"
+dependencies = "stdlib-only"
 
-[testing]
-test_script = "tests/test.sh"
-test_file = "tests/test_dataflow.py"
-total_tests = 14
-nop_pass = 8
-nop_fail = 6
-oracle_pass = 14
-oracle_fail = 0
+[task.validator]
+command = "bash tests/test.sh"
+description = "Runs 14 pytest tests across 4 tiers validating structural output, liveness correctness, interference graph, and fingerprint consistency."
 
-[testing.tiers]
-tier1 = { name = "Structural", tests = 6, description = "File existence, format, register names" }
-tier2 = { name = "Liveness Correctness", tests = 3, description = "Live set validation at key program points" }
-tier3 = { name = "Interference & Priority", tests = 3, description = "Graph structure and allocation ordering" }
-tier4 = { name = "Digest & Cross-Validation", tests = 2, description = "Fingerprint and internal consistency" }
+[task.repair]
+command = "bash solution/solve.sh"
+description = "Applies fixes to liveness_engine.py, interference_builder.py, and allocation_scorer.py, then re-runs analysis."
 
-[solution]
-script = "solution/solve.sh"
-repair_file = "solution/repair_token_flow.py"
-
-[bugs]
-count = 4
-
-[[bugs.entries]]
-file = "liveness_engine.py"
-description = "Transfer function subtracts USE(n) instead of DEF(n) from LiveOut"
-severity = "critical"
-cascades = false
-
-[[bugs.entries]]
-file = "interference_builder.py"
-description = "Interference check uses OR instead of AND (overly conservative)"
-severity = "major"
-cascades = true
-
-[[bugs.entries]]
-file = "allocation_scorer.py"
-description = "Priority uses definition count instead of interference degree"
-severity = "moderate"
-cascades = false
-
-[[bugs.entries]]
-file = "analysis_output.py"
-description = "Cascades from interference_builder - uses buggy interference graph"
-severity = "cascade"
-cascades = true
+[task.resources]
+timeout = 300
+cpu = 2
+memory = "2GB"
+disk = "1GB"
