@@ -10,10 +10,10 @@ The correlation pipeline reads an intrusion event log, processes events through 
 
 The correlation runs without errors but produces incorrect results:
 
-- The threat assessment shows **0 isolated pairs** when correlation analysis expects **18**
+- The threat assessment shows **0 isolated pairs** when correlation analysis expects **14**
 - The triage ordering does not reflect total accumulated threat severity
-- DMZ's own threat component reports **14** but integration of its event history (4 PROBE + 2 BREACH + 2 CORRELATE) should yield **15**
-- The report digest is `73f11ba9384eda64` instead of the expected `4f6097112936e335`
+- DMZ's own threat component reports **13** but should be **14**
+- The report digest is `4135f55849e77c87` instead of the expected `59cb34cecde525ae`
 
 ## File Layout
 
@@ -30,33 +30,19 @@ The correlation runs without errors but produces incorrect results:
 
 ## Correct Files (do not modify)
 
-- `/app/runtime/data/intrusion_events.log` — the raw event trace
-- `/app/runtime/intel_parser.py` — parses the pipe-separated log format
-- `/app/runtime/run_correlation.py` — orchestrates parsing, accumulation, and reporting
+- `/app/runtime/data/intrusion_events.log`
+- `/app/runtime/intel_parser.py`
+- `/app/runtime/run_correlation.py`
 
 ## Files With Bugs
 
-- `/app/runtime/threat_accumulator.py` — threat vector computation
-- `/app/runtime/correlation_analyzer.py` — isolation analysis and triage ordering
-- `/app/runtime/threat_report.py` — report generation (imports from correlation_analyzer)
-
-## Output Schema
-
-### segment_state.jsonl
-```json
-{"segment_id": "dmz", "threat_vector": [10, 10, 15, 10, 9, 9, 10], "vector_sum": 73}
-```
-
-### threat_assessment.jsonl
-```json
-{"type": "segment_state", "segment_id": "dmz", "threat_vector": [...], "vector_sum": 73}
-{"type": "correlation_analysis", "isolated_pairs": [...], "isolated_count": 18, "triage_order": [...]}
-{"type": "digest", "fingerprint": "4f6097112936e335"}
-```
+- `/app/runtime/threat_accumulator.py`
+- `/app/runtime/correlation_analyzer.py`
+- `/app/runtime/threat_report.py`
 
 ## Expected Correct Values
 
-- DMZ own threat component: **15**
-- Total isolated pairs: **18** (out of 21 possible)
-- Triage order last: **dmz** (highest threat sum of 73)
-- Report digest: `4f6097112936e335`
+- DMZ own threat component: **14**
+- Total isolated pairs: **14** (out of 21 possible)
+- Triage order last: **dmz** (highest threat sum of 72)
+- Report digest: `59cb34cecde525ae`

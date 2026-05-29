@@ -31,11 +31,11 @@
 028 | dmz | PROBE | vector=ssrf_pivot
 029 | bastion | PROBE | vector=ldap_inject
 030 | vault | PROBE | vector=nosql_inject
-031 | core | CORRELATE | intel_state=dmz:9;vault:8;core:8;edge:8;relay:3;bastion:3;enclave:3
-032 | dmz | CORRELATE | intel_state=dmz:12;vault:9;core:9;edge:9;relay:9;bastion:9;enclave:9
+031 | core | CORRELATE | intel_state=dmz:9;vault:8;core:8;edge:8;relay:9;bastion:9;enclave:9
+032 | dmz | CORRELATE | intel_state=dmz:11;vault:9;core:9;edge:9;relay:9;bastion:9;enclave:9
 033 | enclave | PROBE | vector=side_channel
 034 | edge | PROBE | vector=open_redirect
-035 | bastion | CORRELATE | intel_state=dmz:9;vault:8;core:8;edge:8;relay:3;bastion:8;enclave:3
+035 | bastion | CORRELATE | intel_state=dmz:9;vault:8;core:8;edge:8;relay:9;bastion:8;enclave:9
 036 | vault | BREACH | vector=credential_stuff
 037 | core | PROBE | vector=process_hollow
 038 | dmz | PROBE | vector=subdomain_take
@@ -43,6 +43,6 @@
 040 | edge | BREACH | vector=race_condition
 041 | bastion | PROBE | vector=oauth_abuse
 042 | vault | PROBE | vector=timing_attack
-043 | dmz | CORRELATE | intel_state=dmz:14;vault:10;core:10;edge:10;relay:9;bastion:10;enclave:9
+043 | dmz | CORRELATE | intel_state=dmz:13;vault:10;core:10;edge:10;relay:9;bastion:10;enclave:9
 044 | core | PROBE | vector=reflective_load
 045 | enclave | PROBE | vector=covert_channel
