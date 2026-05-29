@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
 environment/runtime/output/
+environment/runtime/simulation_state.jsonl
+environment/runtime/trajectory_report.json

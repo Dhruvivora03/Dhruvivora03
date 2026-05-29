@@ -1,106 +1,83 @@
-# Spatial Index Repair — Debugging Task
+# Particle Collision Simulation — Debugging Task
 
 ## Overview
 
-A geospatial indexing engine ingests point location data from multiple feed sources, constructs an R-tree spatial index, and executes range and k-nearest-neighbor (KNN) queries against the indexed data. The system processes feeds in configurable batches and produces JSON output containing query results and index structure statistics.
+A particle collision simulation models 7 particles in an isolated chamber, tracking their momentum accumulation through drift, thrust, and collision events. The simulation reads a trace log, builds per-particle momentum vectors, classifies trajectory relationships between particles, and generates a report with priority ordering for energy harvesting probes.
 
-## System Environment
+The simulation is producing incorrect results. Several output values do not match expected values from validated reference runs.
 
-- **Language**: Python 3.11
-- **Runtime**: `/app/runtime/` (source, config, data, output)
-- **Global system-wide tooling**: `uv` and `pytest` are available
+## Observed Symptoms
 
-## Processing Stages
+1. **Momentum values too low**: Particle alpha should have own momentum of **15** after all events, but the simulation reports **14**. Similarly, particle beta reports 11 instead of expected 12, gamma reports 8 instead of 9, and delta reports 10 instead of 11.
 
-1. **Feed Loading** — Reads CSV feed files (sensor, landmark, zone) based on the active feeds configuration. Each feed provides geospatial point records with coordinates, labels, timestamps, and per-feed insertion order.
+2. **No independent pairs detected**: The trajectory report shows 0 independent particle pairs, but the expected count is **21** (all pairs should be independent given the collision chamber geometry).
 
-2. **Index Construction** — Builds an R-tree spatial index from the loaded records. The tree uses rtree-specific parameters from the `[indexing.rtree]` configuration section for leaf node capacity and splitting behavior.
+3. **Wrong priority ordering**: The harvesting priority list starts with `particle_gamma` and ends with `particle_beta`, but correct ordering should start with a low-momentum particle (`particle_epsilon`) and end with a high-momentum particle (`particle_delta`).
 
-3. **Query Execution** — Runs range queries (bounding box containment) and KNN queries (nearest neighbors by Euclidean distance). KNN results are sorted deterministically by `(distance, feed_id, insert_order)` to handle ties.
+4. **Digest mismatch**: Expected digest is `771f0d20bdcc7ffb`, simulation produces `7f4ebfaa6240c20a`.
 
-4. **Batch Statistics** — Processes range query results in configurable batch windows and computes per-feed point counts. The final statistics represent the counts from the last processing window.
+## File Layout
 
-5. **Output Generation** — Writes query results and index statistics to JSON files in the output directory.
+All runtime files are located at `/app/runtime/`:
 
-## Problem
+```
+/app/runtime/
+├── data/
+│   └── collision_trace.log    — Event trace (input data)
+├── trace_parser.py            — Parses trace log into events
+├── momentum_tracker.py        — Builds momentum vectors per particle
+├── trajectory_analyzer.py     — Classifies pairs and computes priority
+├── simulation_report.py       — Generates final JSON report
+└── run_simulation.py          — Orchestrates the pipeline
+```
 
-The engine runs without errors but produces incorrect results:
+## Files Known to Be Correct
 
-- Some feed records appear to be missing from the index entirely
-- The R-tree structure has unexpected properties (no node splitting despite many records)
-- Batch statistics report inflated counts that exceed the actual number of records
-- KNN query results show non-deterministic ordering for equidistant points
+- `/app/runtime/trace_parser.py` — Parsing logic is verified correct
+- `/app/runtime/run_simulation.py` — Orchestration logic is verified correct
+- `/app/runtime/data/collision_trace.log` — Input data is verified correct
 
-## Expected Correct Output
+## Files Containing Bugs
 
-When all defects are fixed:
-
-- All 55 records (20 sensor + 18 landmark + 17 zone) should be indexed
-- The R-tree should use a leaf capacity of 8, producing a tree of depth 2 with 9 splits
-- Batch window statistics should report per-feed counts from the final window only: sensor=20, landmark=18, zone=17
-- KNN results should be deterministically ordered by (distance, feed_id, insert_order)
+- `/app/runtime/momentum_tracker.py` — Momentum tracking has an error
+- `/app/runtime/trajectory_analyzer.py` — Trajectory analysis has errors
+- `/app/runtime/simulation_report.py` — Report generation inherits analysis errors
 
 ## Output Schema
 
-### `/app/runtime/output/query_results.json`
+### simulation_state.jsonl
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `range_queries` | list | List of range query result objects |
-| `range_queries[].query_id` | string | Identifier of the range query |
-| `range_queries[].hit_count` | integer | Number of points found in range |
-| `range_queries[].hits` | list | List of hit record objects |
-| `range_queries[].hits[].id` | string | Record identifier |
-| `range_queries[].hits[].feed_id` | string | Source feed name |
-| `range_queries[].hits[].x` | float | X coordinate |
-| `range_queries[].hits[].y` | float | Y coordinate |
-| `range_queries[].hits[].label` | string | Record label |
-| `knn_queries` | list | List of KNN query result objects |
-| `knn_queries[].query_id` | string | Identifier of the KNN query |
-| `knn_queries[].center` | object | Query center point with x, y |
-| `knn_queries[].neighbors` | list | Ordered list of nearest neighbors |
-| `knn_queries[].neighbors[].id` | string | Neighbor record identifier |
-| `knn_queries[].neighbors[].feed_id` | string | Neighbor source feed |
-| `knn_queries[].neighbors[].x` | float | Neighbor X coordinate |
-| `knn_queries[].neighbors[].y` | float | Neighbor Y coordinate |
-| `knn_queries[].neighbors[].label` | string | Neighbor label |
-| `knn_queries[].neighbors[].distance` | float | Euclidean distance from center |
-| `total_records_indexed` | integer | Total number of records in the index |
+One JSON record per line. Particle state records:
+```json
+{"type": "particle_state", "particle_id": "particle_alpha", "momentum_vector": [...], "own_momentum": 15}
+```
 
-### `/app/runtime/output/index_stats.json`
+Event summary record:
+```json
+{"type": "event_summary", "total_events": 45, "per_particle": {"particle_alpha": 9, ...}}
+```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `tree_depth` | integer | Depth of the R-tree structure |
-| `max_leaf_capacity` | integer | Maximum entries per leaf node |
-| `split_count` | integer | Number of node splits during construction |
-| `total_indexed` | integer | Total number of indexed records |
-| `batch_window_stats` | object | Per-feed point counts from final batch window |
-| `batch_window_stats.sensor` | integer | Sensor feed count in final window |
-| `batch_window_stats.landmark` | integer | Landmark feed count in final window |
-| `batch_window_stats.zone` | integer | Zone feed count in final window |
-| `window_feed_summary` | object | Per-feed summary from range query execution |
+### trajectory_report.json
 
-## Key Files
+```json
+{
+  "simulation_summary": {"particle_count": 7, "total_events": 45, "particles": [...]},
+  "momentum_state": {"particle_alpha": {"vector": [...], "vector_sum": 51}, ...},
+  "pair_classification": {"independent_pairs": [...], "dependent_pairs": [...], "independent_count": 21, "total_pairs": 21},
+  "harvesting_priority": ["particle_epsilon", "particle_eta", "particle_zeta", ...],
+  "validation": {"digest": "771f0d20bdcc7ffb"}
+}
+```
 
-| File | Purpose |
-|------|---------|
-| `/app/runtime/config.ini` | Configuration with feed list, indexing parameters, and query settings |
-| `/app/runtime/feed_loader.py` | Loads and filters spatial records from CSV feeds |
-| `/app/runtime/rtree_index.py` | R-tree index implementation with insert, range query, and KNN |
-| `/app/runtime/query_engine.py` | Executes queries in batch windows and computes statistics |
-| `/app/runtime/run_spatial.py` | Main entry point orchestrating the full process |
-| `/app/runtime/data/sensor_feed.csv` | Sensor location records (20 entries) |
-| `/app/runtime/data/landmark_feed.csv` | Landmark location records (18 entries) |
-| `/app/runtime/data/zone_feed.csv` | Zone location records (17 entries) |
-| `/app/runtime/data/range_queries.csv` | Range query definitions (5 queries) |
-| `/app/runtime/data/knn_queries.csv` | KNN query definitions (3 queries) |
+## Event Types
 
-## Your Task
+- **DRIFT**: Low-energy displacement, adds +1 to particle's own momentum
+- **THRUST**: High-energy boost, adds +2 to particle's own momentum
+- **COLLIDE**: Elastic collision with another particle, synchronizes momentum knowledge
 
-Identify and fix defects in the runtime source files under `/app/runtime/`. The data files and query definitions are correct — the bugs are in the Python source code and its interaction with the configuration file. Focus on:
+## Constraints
 
-- How feed names are parsed from the configuration
-- Which configuration section provides indexing parameters
-- How batch window statistics are aggregated across windows
-- How KNN results handle distance ties in sorting
+- All particles start with BASE_MOMENTUM = 3
+- There are 7 particles total with 45 events
+- Particles that collide: alpha, beta, gamma, delta (1 collision each)
+- Particles that never collide: epsilon, eta, zeta

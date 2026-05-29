@@ -1,0 +1,50 @@
+; Particle Collision Chamber — Momentum Exchange Trace
+; Simulation of 7 particles in isolated collision chamber
+; Format: SEQ -> PARTICLE_ID -> EVENT_TYPE -> DETAILS
+; BASE_MOMENTUM = 3 for all particles at initialization
+; DRIFT adds +1, THRUST adds +2, COLLIDE synchronizes momentum knowledge
+001 -> particle_alpha -> DRIFT -> delta=1
+002 -> particle_beta -> THRUST -> delta=2
+003 -> particle_gamma -> DRIFT -> delta=1
+004 -> particle_delta -> DRIFT -> delta=1
+005 -> particle_epsilon -> THRUST -> delta=2
+006 -> particle_zeta -> DRIFT -> delta=1
+007 -> particle_eta -> DRIFT -> delta=1
+008 -> particle_alpha -> THRUST -> delta=2
+009 -> particle_beta -> DRIFT -> delta=1
+010 -> particle_gamma -> THRUST -> delta=2
+011 -> particle_alpha -> DRIFT -> delta=1
+012 -> particle_delta -> THRUST -> delta=2
+013 -> particle_epsilon -> DRIFT -> delta=1
+014 -> particle_zeta -> THRUST -> delta=2
+015 -> particle_eta -> THRUST -> delta=2
+016 -> particle_alpha -> COLLIDE -> peer_state=particle_alpha:7;particle_beta:6;particle_gamma:6;particle_delta:6;particle_epsilon:6;particle_zeta:6;particle_eta:6
+017 -> particle_beta -> DRIFT -> delta=1
+018 -> particle_gamma -> DRIFT -> delta=1
+019 -> particle_alpha -> DRIFT -> delta=1
+020 -> particle_delta -> DRIFT -> delta=1
+021 -> particle_epsilon -> DRIFT -> delta=1
+022 -> particle_zeta -> DRIFT -> delta=1
+023 -> particle_eta -> DRIFT -> delta=1
+024 -> particle_beta -> COLLIDE -> peer_state=particle_alpha:7;particle_beta:7;particle_gamma:6;particle_delta:6;particle_epsilon:6;particle_zeta:6;particle_eta:6
+025 -> particle_alpha -> THRUST -> delta=2
+026 -> particle_gamma -> DRIFT -> delta=1
+027 -> particle_delta -> THRUST -> delta=2
+028 -> particle_epsilon -> THRUST -> delta=2
+029 -> particle_zeta -> DRIFT -> delta=1
+030 -> particle_eta -> DRIFT -> delta=1
+031 -> particle_alpha -> DRIFT -> delta=1
+032 -> particle_beta -> DRIFT -> delta=1
+033 -> particle_gamma -> COLLIDE -> peer_state=particle_alpha:7;particle_beta:7;particle_gamma:8;particle_delta:6;particle_epsilon:6;particle_zeta:6;particle_eta:6
+034 -> particle_delta -> DRIFT -> delta=1
+035 -> particle_epsilon -> DRIFT -> delta=1
+036 -> particle_alpha -> DRIFT -> delta=1
+037 -> particle_zeta -> THRUST -> delta=2
+038 -> particle_eta -> THRUST -> delta=2
+039 -> particle_beta -> THRUST -> delta=2
+040 -> particle_delta -> COLLIDE -> peer_state=particle_alpha:7;particle_beta:7;particle_gamma:8;particle_delta:9;particle_epsilon:6;particle_zeta:6;particle_eta:6
+041 -> particle_alpha -> THRUST -> delta=2
+042 -> particle_epsilon -> DRIFT -> delta=1
+043 -> particle_zeta -> DRIFT -> delta=1
+044 -> particle_eta -> DRIFT -> delta=1
+045 -> particle_beta -> DRIFT -> delta=1
