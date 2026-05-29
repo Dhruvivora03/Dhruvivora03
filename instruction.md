@@ -1,106 +1,91 @@
-# Spatial Index Repair — Debugging Task
+# Audio Forensics Fingerprint Analysis — Debugging Task
 
 ## Overview
 
-A geospatial indexing engine ingests point location data from multiple feed sources, constructs an R-tree spatial index, and executes range and k-nearest-neighbor (KNN) queries against the indexed data. The system processes feeds in configurable batches and produces JSON output containing query results and index structure statistics.
+An audio forensics pipeline analyzes 7 audio tracks to detect near-duplicate content through spectral fingerprinting. The system loads pre-computed spectral coefficients, applies sliding-window fingerprinting to produce compact feature vectors, computes pairwise similarity between all tracks, and performs hierarchical clustering to identify duplicate groups.
 
-## System Environment
+The pipeline is producing incorrect results. Several output values do not match expected values from validated reference runs.
 
-- **Language**: Python 3.11
-- **Runtime**: `/app/runtime/` (source, config, data, output)
-- **Global system-wide tooling**: `uv` and `pytest` are available
+## Observed Symptoms
 
-## Processing Stages
+1. **Too few fingerprint segments**: Each track should produce **3** fingerprint segments from 8 spectral frames, but the pipeline produces only **2**. The composite fingerprint for track_alpha has last coefficient ~1.2000 instead of expected ~1.1917.
 
-1. **Feed Loading** — Reads CSV feed files (sensor, landmark, zone) based on the active feeds configuration. Each feed provides geospatial point records with coordinates, labels, timestamps, and per-feed insertion order.
+2. **Similarity scores out of range**: The top similarity score between any track pair is reported as ~29.3 which is outside the valid [0, 1] range. Expected top similarity (track_delta vs track_zeta) should be ~0.9999.
 
-2. **Index Construction** — Builds an R-tree spatial index from the loaded records. The tree uses rtree-specific parameters from the `[indexing.rtree]` configuration section for leaf node capacity and splitting behavior.
+3. **Wrong cluster count**: Only **1** duplicate group is reported (containing all 7 tracks), but the expected result is **2** distinct duplicate groups: {track_alpha, track_gamma} and {track_delta, track_zeta}. Three tracks (beta, epsilon, eta) should be classified as singletons.
 
-3. **Query Execution** — Runs range queries (bounding box containment) and KNN queries (nearest neighbors by Euclidean distance). KNN results are sorted deterministically by `(distance, feed_id, insert_order)` to handle ties.
+4. **Digest mismatch**: Expected digest is `312e1292f1643efd`, pipeline produces `960961fb9c30e647`.
 
-4. **Batch Statistics** — Processes range query results in configurable batch windows and computes per-feed point counts. The final statistics represent the counts from the last processing window.
+## File Layout
 
-5. **Output Generation** — Writes query results and index statistics to JSON files in the output directory.
+All runtime files are located at `/app/runtime/`:
 
-## Problem
+```
+/app/runtime/
+├── data/
+│   └── spectral_coefficients.dat  — Pre-computed STFT coefficients (input)
+├── spectrum_loader.py             — Loads spectral data from file
+├── fingerprint_engine.py          — Sliding-window fingerprint computation
+├── similarity_matrix.py           — Pairwise similarity scoring
+├── cluster_builder.py             — Hierarchical agglomerative clustering
+├── forensics_report.py            — Generates final JSON report
+└── run_forensics.py               — Orchestrates the pipeline
+```
 
-The engine runs without errors but produces incorrect results:
+## Files Known to Be Correct
 
-- Some feed records appear to be missing from the index entirely
-- The R-tree structure has unexpected properties (no node splitting despite many records)
-- Batch statistics report inflated counts that exceed the actual number of records
-- KNN query results show non-deterministic ordering for equidistant points
+- `/app/runtime/spectrum_loader.py` — Data loading is verified correct
+- `/app/runtime/run_forensics.py` — Orchestration logic is verified correct
+- `/app/runtime/data/spectral_coefficients.dat` — Input data is verified correct
 
-## Expected Correct Output
+## Files Containing Bugs
 
-When all defects are fixed:
-
-- All 55 records (20 sensor + 18 landmark + 17 zone) should be indexed
-- The R-tree should use a leaf capacity of 8, producing a tree of depth 2 with 9 splits
-- Batch window statistics should report per-feed counts from the final window only: sensor=20, landmark=18, zone=17
-- KNN results should be deterministically ordered by (distance, feed_id, insert_order)
+- `/app/runtime/fingerprint_engine.py` — Window stride computation has an error
+- `/app/runtime/similarity_matrix.py` — Similarity scoring has an error
+- `/app/runtime/cluster_builder.py` — Linkage criterion has an error
+- `/app/runtime/forensics_report.py` — Report generation inherits scoring errors
 
 ## Output Schema
 
-### `/app/runtime/output/query_results.json`
+### forensics_state.jsonl
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `range_queries` | list | List of range query result objects |
-| `range_queries[].query_id` | string | Identifier of the range query |
-| `range_queries[].hit_count` | integer | Number of points found in range |
-| `range_queries[].hits` | list | List of hit record objects |
-| `range_queries[].hits[].id` | string | Record identifier |
-| `range_queries[].hits[].feed_id` | string | Source feed name |
-| `range_queries[].hits[].x` | float | X coordinate |
-| `range_queries[].hits[].y` | float | Y coordinate |
-| `range_queries[].hits[].label` | string | Record label |
-| `knn_queries` | list | List of KNN query result objects |
-| `knn_queries[].query_id` | string | Identifier of the KNN query |
-| `knn_queries[].center` | object | Query center point with x, y |
-| `knn_queries[].neighbors` | list | Ordered list of nearest neighbors |
-| `knn_queries[].neighbors[].id` | string | Neighbor record identifier |
-| `knn_queries[].neighbors[].feed_id` | string | Neighbor source feed |
-| `knn_queries[].neighbors[].x` | float | Neighbor X coordinate |
-| `knn_queries[].neighbors[].y` | float | Neighbor Y coordinate |
-| `knn_queries[].neighbors[].label` | string | Neighbor label |
-| `knn_queries[].neighbors[].distance` | float | Euclidean distance from center |
-| `total_records_indexed` | integer | Total number of records in the index |
+One JSON record per line. Track fingerprint records:
+```json
+{"type": "track_fingerprint", "track_id": "track_alpha", "segment_count": 3, "composite": [...], "frame_count": 8}
+```
 
-### `/app/runtime/output/index_stats.json`
+Analysis summary record:
+```json
+{"type": "analysis_summary", "total_tracks": 7, "frames_per_track": 8, "coefficients_per_frame": 6}
+```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `tree_depth` | integer | Depth of the R-tree structure |
-| `max_leaf_capacity` | integer | Maximum entries per leaf node |
-| `split_count` | integer | Number of node splits during construction |
-| `total_indexed` | integer | Total number of indexed records |
-| `batch_window_stats` | object | Per-feed point counts from final batch window |
-| `batch_window_stats.sensor` | integer | Sensor feed count in final window |
-| `batch_window_stats.landmark` | integer | Landmark feed count in final window |
-| `batch_window_stats.zone` | integer | Zone feed count in final window |
-| `window_feed_summary` | object | Per-feed summary from range query execution |
+### dedup_report.json
 
-## Key Files
+```json
+{
+  "analysis_summary": {"track_count": 7, "tracks": [...]},
+  "fingerprints": {"track_alpha": {"segment_count": 3, "composite": [...]}, ...},
+  "similarity": {"top_pairs": [["track_delta", "track_zeta", 0.999946], ...], "threshold": 0.92},
+  "clustering": {
+    "clusters": [["track_delta", "track_zeta"], ["track_alpha", "track_gamma"], ...],
+    "duplicate_groups": [["track_alpha", "track_gamma"], ["track_delta", "track_zeta"]],
+    "duplicate_group_count": 2,
+    "singleton_tracks": ["track_beta", "track_epsilon", "track_eta"]
+  },
+  "validation": {"digest": "312e1292f1643efd"}
+}
+```
 
-| File | Purpose |
-|------|---------|
-| `/app/runtime/config.ini` | Configuration with feed list, indexing parameters, and query settings |
-| `/app/runtime/feed_loader.py` | Loads and filters spatial records from CSV feeds |
-| `/app/runtime/rtree_index.py` | R-tree index implementation with insert, range query, and KNN |
-| `/app/runtime/query_engine.py` | Executes queries in batch windows and computes statistics |
-| `/app/runtime/run_spatial.py` | Main entry point orchestrating the full process |
-| `/app/runtime/data/sensor_feed.csv` | Sensor location records (20 entries) |
-| `/app/runtime/data/landmark_feed.csv` | Landmark location records (18 entries) |
-| `/app/runtime/data/zone_feed.csv` | Zone location records (17 entries) |
-| `/app/runtime/data/range_queries.csv` | Range query definitions (5 queries) |
-| `/app/runtime/data/knn_queries.csv` | KNN query definitions (3 queries) |
+## Pipeline Parameters
 
-## Your Task
+- **Window size**: 4 frames
+- **Coefficients per frame**: 6
+- **Frames per track**: 8
+- **Similarity threshold**: 0.92 (minimum for duplicate consideration)
+- **Tracks analyzed**: 7
 
-Identify and fix defects in the runtime source files under `/app/runtime/`. The data files and query definitions are correct — the bugs are in the Python source code and its interaction with the configuration file. Focus on:
+## Expected Duplicate Relationships
 
-- How feed names are parsed from the configuration
-- Which configuration section provides indexing parameters
-- How batch window statistics are aggregated across windows
-- How KNN results handle distance ties in sorting
+- track_alpha ≈ track_gamma (near-identical spectral profiles)
+- track_delta ≈ track_zeta (near-identical spectral profiles)
+- track_beta, track_epsilon, track_eta are unique (no matches above threshold)

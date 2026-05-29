@@ -1,34 +1,33 @@
 author_name = "Dhruvkumar Patel"
 author_email = "dhruvpatel2284@gmail.com"
-category = "spatial_indexing"
+category = "Graphics / Image / Video"
 difficulty = "hard"
-tags = ["spatial-indexing", "rtree", "query-engine", "geospatial", "data-structures"]
-
-difficulty_explanation = "Requires identifying four interacting bugs across three source files: a whitespace parsing issue in feed configuration, a wrong config section reference for tree parameters, an accumulation logic error in batch statistics, and a missing sort key component for deterministic KNN ordering. The bugs are subtle and their effects compound."
-solution_explanation = "Fix feed_loader.py to strip whitespace from comma-split active feeds list, fix rtree_index.py to read max_leaf_capacity from [indexing.rtree] instead of [indexing], fix query_engine.py to use assignment instead of accumulation for per-window batch statistics, and fix rtree_index.py KNN sort key to include feed_id between distance and insert_order."
-verification_explanation = "Tests validate output correctness at multiple levels: basic structure, individual bug effects (zone records present, correct leaf capacity, correct batch stats), and combined correctness (KNN ordering, total record count, full range query accuracy). All 10 tests must pass."
-expert_time_estimate_hours = 3.0
+tags = ["audio-forensics", "fingerprinting", "cosine-similarity", "hierarchical-clustering", "signal-processing", "deduplication"]
+difficulty_explanation = "Requires understanding three distinct signal processing concepts: sliding window overlap for temporal resolution, cosine vs dot-product similarity for scale-invariant comparison, and complete vs single linkage for cluster cohesion. Each bug is defended by a plausible but incorrect engineering justification."
+solution_explanation = "Three bugs across three files: (1) fingerprint_engine.py uses stride=window_size instead of stride=window_size//2, (2) similarity_matrix.py computes raw dot product instead of cosine similarity, (3) cluster_builder.py uses single-linkage instead of complete-linkage clustering."
+verification_explanation = "14 tests in 4 tiers: 6 structural (always pass), 3 fingerprint (need bug 1 fix), 3 similarity/clustering (need bugs 2+3 fix), 2 consistency (need all fixes). NOP yields 8 pass / 6 fail. Oracle yields 14 pass / 0 fail."
+expert_time_estimate_hours = 2.5
 
 [task]
-name = "spatial-index-repair"
-description = "Debug a spatial indexing engine that builds an R-tree from geospatial feed data and executes range and k-nearest-neighbor queries. The system has four subtle defects causing incorrect feed filtering, degenerate tree structure, inflated statistics, and non-deterministic query ordering."
+name = "audio-fingerprint-repair"
+description = "Debug an audio forensics pipeline that incorrectly computes spectral fingerprints with non-overlapping windows, uses unnormalized dot product instead of cosine similarity, and applies single-linkage clustering instead of complete-linkage for duplicate detection."
 
 [task.difficulty]
 level = "hard"
-reasoning = "Four interacting bugs across multiple files require understanding of configuration parsing, tree data structures, batch processing semantics, and sort stability. Bugs are not indicated by comments or obvious code smells."
+reasoning = "Three conceptually independent bugs in different algorithmic domains (signal windowing, similarity metrics, clustering linkage) each masked by convincing but incorrect engineering rationales. The chaining effect of single-linkage combined with inflated unnormalized scores makes diagnosis non-obvious."
 
 [task.runtime]
-entrypoint = "python3 -m runtime.run_spatial"
+entrypoint = "python3 /app/runtime/run_forensics.py"
 language = "python"
 dependencies = "stdlib-only"
 
 [task.validator]
 command = "bash tests/test.sh"
-description = "Runs the spatial indexing engine and validates query results and index statistics against expected correct values using pytest."
+description = "Runs 14 pytest tests across 4 difficulty tiers validating fingerprint segments, similarity normalization, cluster formation, and end-to-end digest consistency."
 
 [task.repair]
 command = "bash solution/solve.sh"
-description = "Patches four bugs in the runtime source files and re-runs the engine to produce correct output."
+description = "Fixes window stride to 50% overlap, normalizes similarity to cosine, and switches to complete-linkage clustering."
 
 [task.resources]
 timeout = 300

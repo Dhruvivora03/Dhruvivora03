@@ -1,3 +1,4 @@
 __pycache__/
 *.pyc
-environment/runtime/output/
+environment/runtime/forensics_state.jsonl
+environment/runtime/dedup_report.json
